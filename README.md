@@ -15,9 +15,9 @@
         - Form to enter the student's L number.
         - Submit button.
     - **Logic**:
-        - Upon submission, use SSHfs to parse a TSV file on the server.
-        - Validate the L number.
-        - Return validation status and list of the student's current classes.
+        - Upon submission, use SSHfs to login to a server and then parse a TSV file.
+        - Validate the L number (length, number range).
+        - If the student is already signed in, redirect to the Sign-out page.
   
 ### 2. Sign-in:
     - **Purpose**: Allow students to sign in for a session.
@@ -29,32 +29,32 @@
         - Lab Location: CIT Lab, Other.
         - Student Classes: (Populated from the student's current classes).
     - **Logic**:
+        - Return list of the student's current classes.
         - Save the sign-in data to an SQLite database using SQLAlchemy.
-        - If the student is already signed in, redirect to the Sign-out page.
 
 ### 3. Sign-out:
     - **Purpose**: Allow students to sign out from a session.
     - **Features**:
-        - Display message indicating the student is signed in.
-        - Optional comment section.
-        - Sign-out button.
+        - Display message indicating the student is now signed out.
+        - Optional comment section with submit button.
     - **Logic**:
         - If the user is already signed in, automatically select this page.
-        - Upon clicking the sign-out button, log the user out and save any comments to the database.
+        - Upon landing, log the user out and save any comments to the database if submit is pressed.
   
 ### 4. Query Login:
     - **Purpose**: Extract and view login data.
     - **Features**:
         - Login form.
     - **Logic**:
-        - After successful login, display the SQLite data in TSV format.
+        - After successful login, redirect to Query Selection page.
   
 ### 5. Query Selection:
     - **Purpose**: Extract and view selected class data.
     - **Features**:
-        - Login form.
+        - Form to select date range.
+        - Two buttons to enter in current term and to submit.
     - **Logic**:
-        - After successful login, display the SQLite class selection data in TSV format.
+        - Display the SQLite attendance data in CSV format.
 
 ---
 
@@ -82,13 +82,3 @@
     - Handle scenarios where the L number is not found.
     - Handle failed database writes/reads.
     - Manage unsuccessful logins.
-
-### 3. Security:
-    - Ensure secure data transfer and storage.
-    - Implement protection against SQL injection.
-    - Ensure the security of the SSHfs connection.
-
-### 4. UI/UX:
-    - Design considerations for the app.
-    - Mobile responsiveness.
-    - Usability considerations.

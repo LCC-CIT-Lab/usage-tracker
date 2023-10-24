@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sign In</title>
+</head>
+<body>
+    <form action="/sign-in" method="post">
+        <label for="lab_location">Select Lab Location:</label>
+        <select name="lab_location">
+            <option value="CIT Lab">CIT Lab</option>
+            <option value="Other">Other</option>
+        </select>
+        <label for="class_selected">Select Class:</label>
+        <select name="class_selected">
+            {% for cls in classes %}
+            <option value="{{ cls }}">{{ cls }}</option>
+            {% endfor %}
+        </select>
+        <input type="submit" value="Sign In">
+    </form>
+</body>
+</html>
