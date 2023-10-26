@@ -56,6 +56,13 @@
     - **Logic**:
         - Display the SQLite attendance data in CSV format.
 
+### 6. Query Error:
+    - **Purpose**: Show error page if login or date range is incorrect.
+    - **Features**:
+        - State the error
+    - **Logic**:
+        - State the error on the login or selection page?
+
 ---
 
 ## Database:
@@ -77,6 +84,7 @@
 ### 1. SSHfs Configuration:
     - Define how the SSHfs connection is established.
     - Specify the location and format of the TSV file used for validation.
+        - 
 
 ### 2. Error Handling:
     - Handle scenarios where the L number is not found.
