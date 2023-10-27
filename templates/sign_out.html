@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sign Out</title>
+    <title>Checkout</title>
+    <script>
+        setTimeout(function() {
+            window.location.href = "{{ url_for('landing') }}";
+        }, 10000); // Redirect after 10 seconds
+    </script>
 </head>
 <body>
-    <form action="/sign-out" method="post">
-        <label for="l_number">Enter L number to Sign Out:</label>
-        <input type="text" name="l_number" required>
-        <label for="comments">Comments (Optional):</label>
-        <textarea name="comments"></textarea>
-        <input type="submit" value="Sign Out">
+    <h2>Leave a Comment</h2>
+    <form action="{{ url_for('checkout') }}" method="POST">
+        <input type="hidden" name="l_number" value="{{ l_number }}">
+        <textarea name="comment"></textarea><br>
+        <input type="submit" value="Send">
     </form>
 </body>
 </html>

@@ -4,7 +4,9 @@
     <title>Sign In</title>
 </head>
 <body>
+
     <form action="/sign-in" method="post">
+        <input type="hidden" name="l_number" value="{{ l_number }}">
         <label for="lab_location">Select Lab Location:</label>
         <select name="lab_location">
             <option value="CIT Lab">CIT Lab</option>
