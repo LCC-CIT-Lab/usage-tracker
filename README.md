@@ -1,11 +1,11 @@
-
-# Website Spec Sheet: Online Lab Attendance Form
+"""
+# Spec Sheet: Online Lab Attendance Form
 
 ## Framework:
 - Flask
 
 ## Component:
-- **app.py**: Handles the UI logic, data processing, and messaging.
+- **app.py**: Handles the UI logic, data processing, messaging, encryption, and email functionalities.
 
 ## Routes:
 
@@ -15,9 +15,9 @@
         - Form to enter the student's L number.
         - Submit button.
     - **Logic**:
-        - Upon submission, use SSHfs to login to a server and then parse a TSV file.
-        - Validate the L number (length, number range).
-        - If the student is already signed in, redirect to the Sign-out page.
+        - Upon submission, validate the L number (length, number range).
+        - If the student is already signed in for the current day and hasn't signed out, automatically sign them out.
+        - Otherwise, redirect to the Sign-in page.
   
 ### 2. Sign-in:
     - **Purpose**: Allow students to sign in for a session.
@@ -31,6 +31,7 @@
     - **Logic**:
         - Return list of the student's current classes.
         - Save the sign-in data to an SQLite database using SQLAlchemy.
+        - If student is already signed in on the same day without a sign-out, sign them out.
 
 ### 3. Sign-out:
     - **Purpose**: Allow students to sign out from a session.
@@ -40,21 +41,25 @@
     - **Logic**:
         - If the user is already signed in, automatically select this page.
         - Upon landing, log the user out and save any comments to the database if submit is pressed.
-  
+
 ### 4. Query Login:
-    - **Purpose**: Extract and view login data.
+    - **Purpose**: Secure access point for querying attendance data.
     - **Features**:
-        - Login form.
+        - Form to enter an authorized email address.
+        - Submit button.
     - **Logic**:
-        - After successful login, redirect to Query Selection page.
-  
+        - Validates if the email is authorized.
+        - Generates a one-time valid token link and sends it to the email.
+        - The token is valid until midnight of the same day.
+
 ### 5. Query Selection:
     - **Purpose**: Extract and view selected class data.
     - **Features**:
         - Form to select date range.
         - Two buttons to enter in current term and to submit.
     - **Logic**:
-        - Display the SQLite attendance data in CSV format.
+        - Fetches the attendance data for the specified date range from the SQLite database.
+        - Sends the fetched data in CSV format to the user's email.
 
 ### 6. Query Error:
     - **Purpose**: Show error page if login or date range is incorrect.
@@ -90,3 +95,14 @@
     - Handle scenarios where the L number is not found.
     - Handle failed database writes/reads.
     - Manage unsuccessful logins.
+    - Handle decryption errors and token validation issues.
+    - Manage failed email sending operations.
+
+### 3. Email Configuration:
+    - Configured using SMTP settings from `config.toml`.
+    - Utility functions for sending emails are integrated, such as sending comments and sending query access links.
+
+### 4. Encryption:
+    - A token generation and validation system has been set up using Fernet encryption.
+    - Tokens are generated using a combination of the user's email and the current date, ensuring daily expiry.
+"""
