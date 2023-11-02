@@ -105,4 +105,8 @@
 ### 4. Encryption:
     - A token generation and validation system has been set up using Fernet encryption.
     - Tokens are generated using a combination of the user's email and the current date, ensuring daily expiry.
+
+## To Do:
+
+### 1. Building selection by IP address.
 """

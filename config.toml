@@ -1,5 +1,6 @@
 [encryption]
 VALID_EMAILS = "rosenauj@my.lanecc.edu"  # Add valid emails here
+DEFAULT_ADMIN_PASSWORD = "pass"
 
 [smtp]
 ACCOUNT = "myapp"

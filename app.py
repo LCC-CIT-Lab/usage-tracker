@@ -1,10 +1,14 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, current_app
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from itsdangerous import SignatureExpired, BadSignature, URLSafeTimedSerializer as Serializer
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from cryptography.fernet import Fernet
+from werkzeug.security import generate_password_hash, check_password_hash
 from io import StringIO
+
 
 import csv
 import toml
@@ -17,8 +21,13 @@ KEY = Fernet.generate_key()
 # Load configurations from config.toml
 config = toml.load('config.toml')
 
+# Generate an initial password to reset
+DEFAULT_ADMIN_PASSWORD_HASH = generate_password_hash(config['encryption']['DEFAULT_ADMIN_PASSWORD'])
+
+# Start Flask app
 app = Flask(__name__)
 app.secret_key = Fernet.generate_key()
+
 
 # Apply configurations to Flask app
 app.config.from_mapping(config['flask'])
@@ -35,6 +44,32 @@ class SignInData(db.Model):
     sign_in_timestamp = db.Column(db.DateTime, nullable=False)
     sign_out_timestamp = db.Column(db.DateTime, nullable=True)
     comments = db.Column(db.Text, nullable=True)
+
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    hashed_password = db.Column(db.String(128), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    is_default_password = db.Column(db.Boolean, default=True, nullable=False)
+
+    def set_password(self, password):
+        self.hashed_password = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.hashed_password, password)
+
+
+# Initialize the login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
 
 
 def get_student_classes(l_number):
@@ -55,6 +90,36 @@ def get_student_classes(l_number):
                 classes.append(class_name)
 
     return list(set(classes))
+
+
+has_run = False
+
+
+@app.before_request
+def before_request():
+    global has_run
+    if not has_run:
+        create_admin()
+        has_run = True
+
+
+def create_admin():
+    db.create_all()  # Ensure the database tables are created
+    admin_username = 'admin'  # Replace with desired admin username
+    admin_email = 'rosenauj@my.lanecc.edu'  # Replace with the admin email
+    default_admin_password = config['encryption']['DEFAULT_ADMIN_PASSWORD']
+
+    existing_admin = User.query.filter_by(username=admin_username).first()
+    if not existing_admin:
+        # Create an admin user with a default password
+        admin_user = User(
+            username=admin_username,
+            email=admin_email,
+            is_admin=True
+        )
+        admin_user.set_password(default_admin_password)
+        db.session.add(admin_user)
+        db.session.commit()
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -212,62 +277,46 @@ def decrypt_message(encrypted_message, key):
     return decrypted_message
 
 
-def generate_token(email):
-    today = datetime.now()
-    message = f"{email}-{today.month}-{today.day}"
-    return encrypt_message(message, KEY)
+def generate_token(username, expiration=1800):
+    s = Serializer(current_app.config['SECRET_KEY'], expiration)
+    return s.dumps({'username': username}).decode('utf-8')
 
 
 def validate_token(token):
-    if not token:
-        return None
-
-    decrypted_message = decrypt_message(token, KEY)
-    email, month, day = decrypted_message.split('-')
-    today = datetime.now()
-    if int(month) == today.month and int(day) == today.day:
-        return email  # Return the email if the token is valid
-    else:
-        return None  # Return None if the token is expired
+    s = Serializer(current_app.config['SECRET_KEY'])
+    try:
+        data = s.loads(token)
+    except SignatureExpired:
+        return None  # valid token, but expired
+    except BadSignature:
+        return None  # invalid token
+    return data.get('username')
 
 
-@app.route('/query_login', methods=['GET', 'POST'])
-def query_login():
-    if request.method == 'POST':
-        email = request.form['email']
-        if email == config['encryption']['VALID_EMAILS']:
-            token = generate_token(email)
-            link = url_for('query_selection', token=token, _external=True)
-            send_email_to_user(email, link)  # Use your email sending function
-            flash('Login email sent.')
-            return redirect(url_for('query_login'))
-    return render_template('query_login.html')
+def confirm_token(token, expiration=1800):
+    s = Serializer(current_app.config['SECRET_KEY'])
+    try:
+        data = s.loads(token, max_age=expiration)
+    except:
+        return False
+    return data['username']
 
 
 @app.route('/query_selection', methods=['GET', 'POST'])
+@login_required
 def query_selection():
-    if request.method == 'GET':
-        token = request.args.get('token')
-        email = validate_token(token)
-        if not email:
-            flash('Invalid or expired token.')
-            return redirect(url_for('landing'))
+    if not current_user.is_admin:
+        flash('Access denied: You do not have the necessary permissions.')
+        return redirect(url_for('login'))
 
-        # Store the validated email in the session
-        session['email_for_query'] = email
-
-    elif request.method == 'POST':
-        email = session.get('email_for_query')
-        if not email:
-            flash('Session expired or invalid. Please login again.')
-            return redirect(url_for('query_login'))
-
+    if request.method == 'POST':
         start_date = request.form['start_date']
         end_date = request.form['end_date']
         # Fetch data from DB, create CSV and send email
         data = SignInData.query.filter(SignInData.sign_in_timestamp.between(start_date, end_date)).all()
-        send_data_as_csv(email, data)  # Implement this function
+        send_data_as_csv(current_user.email, data)  # Use the current user's email from the user session
 
+    # If it's a GET request or the POST request is processed, show the same query selection page
     return render_template('query_selection.html')
 
 
@@ -355,6 +404,196 @@ def check_db():
     for entry in data:
         output += f"L Number: {entry.l_number}, Lab: {entry.lab_location}, Class: {entry.class_selected}, Sign In: {entry.sign_in_timestamp}, Sign Out: {entry.sign_out_timestamp}<br>"
     return output
+
+
+# Add near the other routes in app.py
+@app.route('/request_password_reset', methods=['GET', 'POST'])
+def request_password_reset():
+    if request.method == 'POST':
+        username = request.form['username']
+        user = User.query.filter_by(username=username).first()
+        if user:
+            # Generate a password reset token
+            reset_token = generate_token(username)
+            reset_link = url_for('reset_password', token=reset_token, _external=True)
+            send_password_reset_email(user.email, reset_link)
+            flash('Password reset email sent.')
+            return redirect(url_for('landing'))
+    return render_template('request_password_reset.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    if request.method == 'POST':
+        new_password = request.form['password']
+        username = validate_token(token)
+        if username:
+            user = User.query.filter_by(username=username).first()
+            if user:
+                user.set_password(new_password)
+                db.session.commit()
+                flash('Your password has been updated.')
+                return redirect(url_for('landing'))
+            else:
+                flash('Invalid user.')
+                return redirect(url_for('landing'))
+        else:
+            flash('Invalid or expired token.')
+            return redirect(url_for('landing'))
+    return render_template('reset_password.html', token=token)
+
+
+def send_password_reset_email(user_email):
+    try:
+        # Generate a password reset token
+        reset_token = generate_token(user_email)
+        reset_url = url_for('reset_password', token=reset_token, _external=True)
+
+        # Email details
+        subject = "Set Your Admin Password"
+        sender = config['smtp']['SUPPORT_EMAIL']
+        body = f"""
+        Hi,
+
+        To reset your password, click on the following link: {reset_url}
+
+        If you did not make this request then simply ignore this email.
+
+        Best,
+        Your Support Team
+        """
+
+        # Create the email message
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = sender
+        msg['To'] = user_email
+
+        # Write the email to a file
+        with open('password_reset_email.txt', 'w') as file:
+            file.write(msg.as_string())
+
+        # Send the email using msmtp
+        command = f"cat password_reset_email.txt | msmtp --account={config['smtp']['ACCOUNT']} -t"
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        # Optionally, log or print any output from msmtp
+        if stdout:
+            app.logger.info(stdout.decode())
+        if stderr:
+            app.logger.error(stderr.decode())
+
+        # Optionally, remove the email file after sending
+        os.remove('password_reset_email.txt')
+
+    except Exception as e:
+        app.logger.error(f"Failed to send password reset email: {e}")
+
+
+@app.route('/admin', methods=['GET', 'POST'])
+@login_required
+def admin():
+    if not current_user.is_admin:
+        flash('You do not have access to this page.')
+        return redirect(url_for('landing'))
+
+    if request.method == 'POST':
+        # Check if we are adding a new user
+        if 'add' in request.form:
+            username = request.form['username']
+            email = request.form['email']
+            password = request.form['password']
+            is_admin = 'is_admin' in request.form
+
+            existing_user = User.query.filter_by(username=username).first()
+            if existing_user:
+                flash('User already exists.')
+            else:
+                new_user = User(username=username, email=email, is_admin=is_admin)
+                new_user.set_password(password)
+                db.session.add(new_user)
+                db.session.commit()
+                flash('New user added.')
+
+        # Check if we are removing a user
+        elif 'remove' in request.form:
+            user_id = request.form['user_id']
+            user = User.query.get(user_id)
+            if user:
+                db.session.delete(user)
+                db.session.commit()
+                flash('User removed.')
+
+    users = User.query.all()
+    return render_template('admin.html', users=users)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+
+        if user and user.check_password(password):
+            login_user(user)
+            # Redirect to query_selection if the user is not an admin
+            return redirect(url_for('query_selection') if not user.is_admin else url_for('admin_dashboard'))
+        else:
+            flash('Invalid username or password.')
+    return render_template('login.html')
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    if not current_user.is_admin:
+        flash('Access denied: You do not have admin privileges.')
+        return redirect(url_for('landing'))  # Redirect to a general page if not admin
+    # Admin logic here
+    return render_template('admin_dashboard.html')  # Render the admin dashboard page
+
+
+@app.route('/user_management', methods=['GET', 'POST'])
+@login_required
+def user_management():
+    if not current_user.is_admin:
+        flash('Access denied: You do not have the necessary permissions.')
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        email = request.form.get('email')
+        if email:
+            # Check if user already exists
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user:
+                flash('A user with this email already exists.')
+            else:
+                # Create a new user with a default password
+                new_user = User(email=email)
+                new_user.set_password(config['encryption']['DEFAULT_ADMIN_PASSWORD'])
+                db.session.add(new_user)
+                db.session.commit()
+
+                # Generate a password reset token
+                reset_token = generate_token(new_user.username)
+                reset_url = url_for('reset_password', token=reset_token, _external=True)
+
+                # Send an email to the user with the reset URL
+                send_password_reset_email(new_user.email, reset_url)
+                flash('User created. A password reset email has been sent.', 'success')
+        else:
+            flash('Please enter an email address.', 'error')
+
+    users = User.query.all()
+    return render_template('user_management.html', users=users)
 
 
 @app.errorhandler(500)
