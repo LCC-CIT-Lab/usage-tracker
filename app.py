@@ -1,10 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, current_app
+from flask import (Flask, render_template, request, redirect, url_for, session, flash,
+                   current_app, make_response, send_from_directory, abort)
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from itsdangerous import SignatureExpired, BadSignature, URLSafeTimedSerializer as Serializer
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from cryptography.fernet import Fernet
 from werkzeug.security import generate_password_hash, check_password_hash
 from io import StringIO
@@ -14,6 +14,7 @@ import csv
 import toml
 import os
 import subprocess
+import traceback
 
 # Generate a key for Fernet
 KEY = Fernet.generate_key()
@@ -26,11 +27,14 @@ DEFAULT_ADMIN_PASSWORD_HASH = generate_password_hash(config['encryption']['DEFAU
 
 # Start Flask app
 app = Flask(__name__)
-app.secret_key = Fernet.generate_key()
+app.secret_key = config['encryption']['SECRET_KEY']
+if isinstance(app.secret_key, str):
+    app.secret_key = app.secret_key.encode('utf-8')
 
 
 # Apply configurations to Flask app
 app.config.from_mapping(config['flask'])
+app.config.from_mapping(config['encryption'])
 
 db = SQLAlchemy(app)
 
@@ -278,14 +282,16 @@ def decrypt_message(encrypted_message, key):
 
 
 def generate_token(username, expiration=1800):
-    s = Serializer(current_app.config['SECRET_KEY'], expiration)
-    return s.dumps({'username': username}).decode('utf-8')
+    secret_key = app.secret_key
+    s = Serializer(secret_key)
+    return s.dumps({'username': username})
 
 
-def validate_token(token):
-    s = Serializer(current_app.config['SECRET_KEY'])
+def validate_token(token, expiration=1800):
+    secret_key = app.secret_key
+    s = Serializer(secret_key)
     try:
-        data = s.loads(token)
+        data = s.loads(token, max_age=expiration)
     except SignatureExpired:
         return None  # valid token, but expired
     except BadSignature:
@@ -294,7 +300,8 @@ def validate_token(token):
 
 
 def confirm_token(token, expiration=1800):
-    s = Serializer(current_app.config['SECRET_KEY'])
+    secret_key_bytes = app.secret_key
+    s = Serializer(secret_key_bytes)
     try:
         data = s.loads(token, max_age=expiration)
     except:
@@ -305,96 +312,50 @@ def confirm_token(token, expiration=1800):
 @app.route('/query_selection', methods=['GET', 'POST'])
 @login_required
 def query_selection():
-    if not current_user.is_admin:
-        flash('Access denied: You do not have the necessary permissions.')
-        return redirect(url_for('login'))
-
     if request.method == 'POST':
         start_date = request.form['start_date']
         end_date = request.form['end_date']
-        # Fetch data from DB, create CSV and send email
+        # Fetch data from DB
         data = SignInData.query.filter(SignInData.sign_in_timestamp.between(start_date, end_date)).all()
-        send_data_as_csv(current_user.email, data)  # Use the current user's email from the user session
 
-    # If it's a GET request or the POST request is processed, show the same query selection page
-    return render_template('query_selection.html')
+        # Generate a unique filename for the CSV
+        csv_filename = f"attendance_data_{start_date}_{end_date}.csv"
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(
+            ["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Comments"])
+        for entry in data:
+            writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp,
+                             entry.sign_out_timestamp, entry.comments])
+        output.seek(0)
 
+        # Save the CSV data in a temporary file on the server
+        csv_path = os.path.join('/tmp', csv_filename)
+        with open(csv_path, 'w') as f:
+            f.write(output.getvalue())
 
-def send_email_to_user(email, link):
-    try:
-        # Create the email message
-        subject = "LCC Query UI Access"
-        body = f"Dear User,\n\nPlease use the following link to access the Query UI:\n\n{link}\n\nThank you,\nLCC Support"
-        msg = MIMEText(body)
-        msg['Subject'] = subject
-        msg['From'] = config['smtp']['SUPPORT_EMAIL']  # assuming this is still in your config
-        msg['To'] = email
+        # Store the filename in the session for retrieval
+        session['csv_filename'] = csv_filename
 
-        # Write the email to a file
-        with open('email.txt', 'w') as file:
-            file.write(msg.as_string())
+        # Add the filename to the template context
+        return render_template('query_selection.html', csv_filename=csv_filename)
 
-        # Send the email using msmtp
-        command = f"cat email.txt | msmtp --account={config['smtp']['ACCOUNT']} -t"
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-
-        # Print any output from msmtp
-        if stdout:
-            print("Output:", stdout.decode())
-        if stderr:
-            print("Error:", stderr.decode())
-
-        # Optionally, remove the email file after sending
-        os.remove('email.txt')
-
-    except Exception as e:
-        print(f"Failed to send email: {e}")
+    # If it's a GET request or the POST request is processed, show the same query selection page without the download link
+    return render_template('query_selection.html', csv_filename=None)
 
 
-def send_data_as_csv(email, data):
-    # Convert data to CSV format
-    output = StringIO()
-    writer = csv.writer(output)
+@app.route('/download_csv/<filename>')
+def download_csv(filename):
+    # Make sure the filename is safe to open
+    if not os.path.basename(filename) == filename:
+        abort(400, "Invalid filename")
 
-    # Write header
-    writer.writerow(
-        ["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Comments"])
-
-    # Write data
-    for entry in data:
-        writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp,
-                         entry.sign_out_timestamp, entry.comments])
-
-    # Reset the pointer of the StringIO object to the beginning
-    output.seek(0)
-
-    # Create the email message
-    msg = MIMEMultipart()
-    msg['Subject'] = "Attendance Data"
-    msg['From'] = config['smtp']['SUPPORT_EMAIL']
-    msg['To'] = email
-
-    # Attach the body text to the email
-    body = "Attached is the attendance data for the specified date range."
-    msg.attach(MIMEText(body, 'plain'))
-
-    # Attach the CSV data
-    attachment = MIMEText(output.getvalue(), 'plain', 'utf-8')
-    attachment['Content-Disposition'] = 'attachment; filename="attendance_data.csv"'
-    msg.attach(attachment)
-
-    # Write the email to a file
-    with open('email_with_attachment.txt', 'w') as file:
-        file.write(msg.as_string())
-
-    # Send the email using msmtp
-    command = f"cat email_with_attachment.txt | msmtp --account={config['smtp']['ACCOUNT']} -t"
-    process = subprocess.Popen(command, shell=True)
-    process.communicate()
-
-    # Optionally, remove the email file after sending
-    os.remove('email_with_attachment.txt')
+    csv_path = os.path.join('/tmp', filename)
+    if os.path.exists(csv_path):
+        return send_from_directory('/tmp', filename, as_attachment=True)
+    else:
+        flash('No CSV data found. Please generate the report again.', 'error')
+        return redirect(url_for('query_selection'))
 
 
 @app.route('/check-db')
@@ -442,21 +403,20 @@ def reset_password(token):
     return render_template('reset_password.html', token=token)
 
 
-def send_password_reset_email(user_email):
+def send_password_reset_email(user_email, reset_url):
     try:
-        # Generate a password reset token
-        reset_token = generate_token(user_email)
-        reset_url = url_for('reset_password', token=reset_token, _external=True)
-
         # Email details
-        subject = "Set Your Admin Password"
+        subject = "Password Reset Request"
         sender = config['smtp']['SUPPORT_EMAIL']
         body = f"""
         Hi,
 
-        To reset your password, click on the following link: {reset_url}
+        A request has been received to reset the password for your account.
 
-        If you did not make this request then simply ignore this email.
+        Please click on the link below to reset your password:
+        {reset_url}
+
+        If you did not make this request, then ignore this email.
 
         Best,
         Your Support Team
@@ -490,55 +450,32 @@ def send_password_reset_email(user_email):
         app.logger.error(f"Failed to send password reset email: {e}")
 
 
-@app.route('/admin', methods=['GET', 'POST'])
-@login_required
-def admin():
-    if not current_user.is_admin:
-        flash('You do not have access to this page.')
-        return redirect(url_for('landing'))
-
-    if request.method == 'POST':
-        # Check if we are adding a new user
-        if 'add' in request.form:
-            username = request.form['username']
-            email = request.form['email']
-            password = request.form['password']
-            is_admin = 'is_admin' in request.form
-
-            existing_user = User.query.filter_by(username=username).first()
-            if existing_user:
-                flash('User already exists.')
-            else:
-                new_user = User(username=username, email=email, is_admin=is_admin)
-                new_user.set_password(password)
-                db.session.add(new_user)
-                db.session.commit()
-                flash('New user added.')
-
-        # Check if we are removing a user
-        elif 'remove' in request.form:
-            user_id = request.form['user_id']
-            user = User.query.get(user_id)
-            if user:
-                db.session.delete(user)
-                db.session.commit()
-                flash('User removed.')
-
-    users = User.query.all()
-    return render_template('admin.html', users=users)
-
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+        if not username or not password:
+            flash('Please enter both username and password.')
+            return redirect(url_for('login'))
+
         user = User.query.filter_by(username=username).first()
 
         if user and user.check_password(password):
             login_user(user)
-            # Redirect to query_selection if the user is not an admin
-            return redirect(url_for('query_selection') if not user.is_admin else url_for('admin_dashboard'))
+            flash('Logged in successfully.')
+            next_page = request.args.get('next')
+            # Redirect to the admin dashboard if the user is an admin
+            if user.is_admin:
+                return redirect(next_page or url_for('admin_dashboard'))
+            # Redirect to query selection if the user is not an admin
+            # and either there is no next page or the next page is not admin_dashboard
+            else:
+                if not next_page or url_for('admin_dashboard') not in next_page:
+                    return redirect(url_for('query_selection'))
+                else:
+                    flash('Access denied: You do not have the necessary permissions.')
+                    return redirect(url_for('query_selection'))
         else:
             flash('Invalid username or password.')
     return render_template('login.html')
@@ -569,28 +506,44 @@ def user_management():
         return redirect(url_for('login'))
 
     if request.method == 'POST':
+        username = request.form.get('username')
         email = request.form.get('email')
-        if email:
-            # Check if user already exists
-            existing_user = User.query.filter_by(email=email).first()
-            if existing_user:
-                flash('A user with this email already exists.')
-            else:
-                # Create a new user with a default password
-                new_user = User(email=email)
-                new_user.set_password(config['encryption']['DEFAULT_ADMIN_PASSWORD'])
-                db.session.add(new_user)
-                db.session.commit()
+        password = request.form.get('password')
+        is_admin = 'is_admin' in request.form  # This will be True if the Admin checkbox is checked
 
-                # Generate a password reset token
-                reset_token = generate_token(new_user.username)
-                reset_url = url_for('reset_password', token=reset_token, _external=True)
-
-                # Send an email to the user with the reset URL
-                send_password_reset_email(new_user.email, reset_url)
-                flash('User created. A password reset email has been sent.', 'success')
+        # Perform input validation
+        if not (username and email and password):
+            flash('Please enter all the required fields.', 'error')
         else:
-            flash('Please enter an email address.', 'error')
+            # Check if user already exists
+            existing_user = User.query.filter((User.email == email) | (User.username == username)).first()
+            if existing_user:
+                flash('A user with this email or username already exists.', 'error')
+            else:
+                try:
+                    # Create a new user
+                    new_user = User(
+                        username=username,
+                        email=email,
+                        is_admin=is_admin
+                    )
+                    new_user.set_password(password)  # Hashing the password here
+                    db.session.add(new_user)
+                    db.session.commit()
+
+                    # Generate a password reset token
+                    reset_token = generate_token(username)
+                    reset_url = url_for('reset_password', token=reset_token, _external=True)
+
+                    # Send an email to the user with the reset URL
+                    send_password_reset_email(email, reset_url)
+                    flash('User created. A password reset email has been sent.', 'success')
+
+                except Exception as e:
+                    db.session.rollback()
+                    traceback_str = traceback.format_exc()  # This will give you the full traceback as a string.
+                    app.logger.error(traceback_str)  # This will log the full traceback.
+                    flash(f'An error occurred while creating the user: {e}', 'error')
 
     users = User.query.all()
     return render_template('user_management.html', users=users)

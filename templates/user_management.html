@@ -3,19 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <title>User Management</title>
-    <!-- Make sure to include any stylesheets or scripts that were in base.html, if necessary -->
 </head>
 <body>
 <h2>User Management</h2>
 
-<!-- User creation form -->
-<form action="{{ url_for('user_management') }}" method="post">
-    <input type="email" name="email" required placeholder="Enter user's email">
-    <input type="submit" value="Create User">
-</form>
-
 <!-- Add user form -->
-<form action="{{ url_for('admin') }}" method="post">
+<form action="{{ url_for('user_management') }}" method="post">
     <input type="text" name="username" placeholder="Username" required>
     <input type="email" name="email" placeholder="Email" required>
     <input type="password" name="password" placeholder="Password" required>
@@ -42,7 +35,7 @@
             <td>{{ user.email }}</td>
             <td>{{ "Yes" if user.is_admin else "No" }}</td>
             <td>
-                <form action="{{ url_for('admin') }}" method="post">
+                <form action="{{ url_for('user_management') }}" method="post">
                     <input type="hidden" name="user_id" value="{{ user.id }}">
                     <button type="submit" name="remove">Remove</button>
                 </form>
