@@ -1,112 +1,128 @@
-"""
-# Spec Sheet: Online Lab Attendance Form
 
-## Framework:
+# Project Title: Online Lab Attendance System
+
+## Overview
+
+This Flask-based web application serves as a comprehensive system for tracking lab attendance, providing functionalities for user sign-in and sign-out, user authentication, data management, and administrative features. The system is designed to handle secure data processing, messaging, encryption, and email functionalities within an educational setting.
+
+## Getting Started
+
+These instructions will guide you through setting up the project locally for development and testing purposes.
+
+### Prerequisites
+
+- Python 3.x
 - Flask
+- Pip (Python package installer)
+- Virtual environment (recommended)
 
-## Component:
-- **app.py**: Handles the UI logic, data processing, messaging, encryption, and email functionalities.
+### Installation
 
-## Routes:
+Follow these steps to set up your project:
 
-### 1. Landing:
-    - **Purpose**: Entry point to the application.
-    - **Features**:
-        - Form to enter the student's L number.
-        - Submit button.
-    - **Logic**:
-        - Upon submission, validate the L number (length, number range).
-        - If the student is already signed in for the current day and hasn't signed out, automatically sign them out.
-        - Otherwise, redirect to the Sign-in page.
-  
-### 2. Sign-in:
-    - **Purpose**: Allow students to sign in for a session.
-    - **Features**:
-        - Dropdown to select the lab location.
-        - Dropdown to select the student's class.
-        - Submit button.
-    - **Options**:
-        - Lab Location: CIT Lab, Other.
-        - Student Classes: (Populated from the student's current classes).
-    - **Logic**:
-        - Return list of the student's current classes.
-        - Save the sign-in data to an SQLite database using SQLAlchemy.
-        - If student is already signed in on the same day without a sign-out, sign them out.
+1. Clone the repository:
+   ```sh
+   git clone <repository-url>
+   ```
 
-### 3. Sign-out:
-    - **Purpose**: Allow students to sign out from a session.
-    - **Features**:
-        - Display message indicating the student is now signed out.
-        - Optional comment section with submit button.
-    - **Logic**:
-        - If the user is already signed in, automatically select this page.
-        - Upon landing, log the user out and save any comments to the database if submit is pressed.
+2. Navigate to the project directory:
+   ```sh
+   cd yourproject
+   ```
 
-### 4. Query Login:
-    - **Purpose**: Secure access point for querying attendance data.
-    - **Features**:
-        - Form to enter an authorized email address.
-        - Submit button.
-    - **Logic**:
-        - Validates if the email is authorized.
-        - Generates a one-time valid token link and sends it to the email.
-        - The token is valid until midnight of the same day.
+3. Set up a virtual environment and activate it:
+   ```sh
+   python -m venv venv
+   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   ```
 
-### 5. Query Selection:
-    - **Purpose**: Extract and view selected class data.
-    - **Features**:
-        - Form to select date range.
-        - Two buttons to enter in current term and to submit.
-    - **Logic**:
-        - Fetches the attendance data for the specified date range from the SQLite database.
-        - Sends the fetched data in CSV format to the user's email.
+4. Install the required dependencies:
+   ```sh
+   pip install -r requirements.txt
+   ```
 
-### 6. Query Error:
-    - **Purpose**: Show error page if login or date range is incorrect.
-    - **Features**:
-        - State the error
-    - **Logic**:
-        - State the error on the login or selection page?
+5. Initialize the database:
+   ```sh
+   flask db upgrade
+   ```
 
----
+6. Run the server:
+   ```sh
+   flask run
+   ```
 
-## Database:
-- **Type**: SQLite
-- **Tool**: SQLAlchemy
-- **Tables**:
-    - **SignInData**:
-        - L number (Primary key)
-        - Lab Location
-        - Class Selected
-        - Sign-in Timestamp
-        - Sign-out Timestamp
-        - Comments
+## Project Structure
 
----
+### app.py
 
-## Additional Details:
+Handles the user interface logic, data processing, messaging, encryption, and email functionalities.
 
-### 1. SSHfs Configuration:
-    - Define how the SSHfs connection is established.
-    - Specify the location and format of the TSV file used for validation.
-        - 
+### Routes
 
-### 2. Error Handling:
-    - Handle scenarios where the L number is not found.
-    - Handle failed database writes/reads.
-    - Manage unsuccessful logins.
-    - Handle decryption errors and token validation issues.
-    - Manage failed email sending operations.
+- **Landing**: The entry point where students enter their L number to sign in or sign out.
+- **Sign-in**: Allows students to sign in for a session by selecting their lab location and class.
+- **Sign-out**: Enables students to sign out and submit optional comments.
+- **Query Login**: A secure access point for querying attendance data via authorized email addresses.
+- **Query Selection**: Allows extraction and viewing of class data within selected date ranges.
+- **Query Error**: Displays errors related to login or data selection.
 
-### 3. Email Configuration:
-    - Configured using SMTP settings from `config.toml`.
-    - Utility functions for sending emails are integrated, such as sending comments and sending query access links.
+### Templates
 
-### 4. Encryption:
-    - A token generation and validation system has been set up using Fernet encryption.
-    - Tokens are generated using a combination of the user's email and the current date, ensuring daily expiry.
+Contains HTML templates for rendering the web interface, including sign-in/out forms, admin dashboard, user management, and error pages.
 
-## To Do:
 
-### 1. Building selection by IP address.
-"""
+## Configurations
+
+Configurations are managed through `config.toml`, which includes database setup, SMTP settings, and application secrets.
+
+## Technologies
+
+- Flask for the web framework.
+- SQLAlchemy for database interactions.
+- SQLite/PostgreSQL as the database system.
+- Jinja2 for templating.
+- WTForms for form handling.
+
+## Dependencies
+
+Dependencies are listed in the `requirements.txt` file and include third-party libraries such as Flask-Login, Flask-WTF, and Cryptography.
+
+## Third Party Libraries
+
+- Flask-Login: User session management.
+- Flask-WTF: Form handling and validation.
+- Cryptography: Encryption for secure token handling.
+- msmtp: - Client for sending e-mail
+
+## About
+
+Lab Attendance Website is an initiative by LCC-CIT-Lab to provide a secure and straightforward way for users to log-in to labs around campus. The project is open for contributions and welcomes feedback.
+
+## Contact
+
+- GitHub: @LCC-CIT-Lab
+- Email: CITLab@lanecc.edu
+
+## Additional Details
+
+### Database
+
+The application uses SQLite with SQLAlchemy. It includes tables for SignInData and User Management.
+
+### Error Handling
+
+Comprehensive error handling is in place for scenarios such as missing L numbers, database errors, failed logins, encryption issues, and email sending failures.
+
+### Email Configuration
+
+SMTP settings are configured through `config.toml`, and utility functions for sending emails are provided.
+
+### Encryption
+
+Fernet encryption is used for token generation and validation, with tokens expiring daily.
+
+## To Do
+
+- Implement IP address-based building selection.
+- Further error handling improvements.
+- Additional user management features.

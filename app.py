@@ -79,19 +79,31 @@ def load_user(user_id):
 def get_student_classes(l_number):
     """Retrieve the classes a student is enrolled in using the TSV files."""
     class_ids = []
-    with open('studentsinclasses.tsv', 'r') as file:
-        reader = csv.reader(file, delimiter='\t')
-        for row in reader:
-            if l_number == row[0]:  # Check if L number matches
-                class_ids.append(row[1])  # Add class ID
+
+    try:
+        with open('studentsinclasses.tsv', 'r') as file:
+            reader = csv.reader(file, delimiter='\t')
+            for row in reader:
+                if l_number == row[0]:  # Check if L number matches
+                    class_ids.append(row[1])  # Add class ID
+    except FileNotFoundError:
+            # Handle the error, perhaps by sending a flash message or rendering a custom error page
+            flash('Studentsinclasses file not found.', 'error')
+            return redirect(url_for('landing'))  # Redirect to landing or an error page
 
     classes = []
-    with open('classes.tsv', 'r') as file:
-        reader = csv.reader(file, delimiter='\t')
-        for row in reader:
-            if row[1] in class_ids:  # Check if class ID matches
-                class_name = row[2] + " " + row[3] + ": " + row[4]
-                classes.append(class_name)
+
+    try:
+        with open('classes.tsv', 'r') as file:
+            reader = csv.reader(file, delimiter='\t')
+            for row in reader:
+                if row[1] in class_ids:  # Check if class ID matches
+                    class_name = row[2] + " " + row[3] + ": " + row[4]
+                    classes.append(class_name)
+    except FileNotFoundError:
+            # Handle the error, perhaps by sending a flash message or rendering a custom error page
+            flash('Classes file not found.', 'error')
+            return redirect(url_for('landing'))  # Redirect to landing or an error page
 
     return list(set(classes))
 
@@ -131,12 +143,18 @@ def landing():
     if request.method == 'POST':
         l_number = request.form.get('l_number')
         valid_l_number = False
-        with open('students.tsv', 'r') as file:
-            reader = csv.reader(file, delimiter='\t')
-            for row in reader:
-                if l_number == row[0]:
-                    valid_l_number = True
-                    break
+
+        try:
+            with open('students.tsv', 'r') as file:
+                reader = csv.reader(file, delimiter='\t')
+                for row in reader:
+                    if l_number == row[0]:
+                        valid_l_number = True
+                        break
+        except FileNotFoundError:
+                # Handle the error, perhaps by sending a flash message or rendering a custom error page
+                flash('Student file not found.', 'error')
+                return redirect(url_for('landing'))  # Redirect to landing or an error page
 
         if not valid_l_number:
             flash('Invalid L number, please sign-in again.')
