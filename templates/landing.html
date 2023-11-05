@@ -75,10 +75,20 @@
 
     <div class="logo">Lab Sign-In</div>
 
-    <form action="/" method="post">
-        <input type="text" name="l_number" placeholder="Enter L number" required>
-        <input type="submit" value="Sign In">
+    <form method="post" action="{{ url_for('main.landing') }}">
+        {{ form.hidden_tag() }}
+        <div>
+            {{ form.l_number.label }}
+            {{ form.l_number(size=32) }}
+            {% if form.l_number.errors %}
+                <div class="error">{{ form.l_number.errors[0] }}</div>
+            {% endif %}
+        </div>
+        <div>
+            <input type="submit" value="Submit">
+        </div>
     </form>
+    
 </div>
 
 </body>
