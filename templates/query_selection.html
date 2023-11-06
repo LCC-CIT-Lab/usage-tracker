@@ -2,100 +2,53 @@
 <html>
 <head>
     <title>Query Page</title>
-    <!-- Custom Styles -->
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: #333;
-        }
-        .wrapper {
-            text-align: center;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            background: white;
-            max-width: 400px;
-            padding: 20px;
-        }
-        .logo {
-            font-size: 2rem;
-            margin-bottom: 20px;
-        }
-        form {
-            display: flex;
-            flex-direction: column;
-        }
-        input[type='text'] {
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-            font-size: 16px;
-        }
-        input[type='submit'] {
-            padding: 10px;
-            font-size: 16px;
-            border-radius: 5px;
-            border: none;
-            background-color: #5cb85c;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        input[type='submit']:hover {
-            background-color: #4cae4c;
-        }
-        .alert {
-            margin-bottom: 20px;
-            padding: 10px;
-            background-color: #f44336;
-            color: white;
-            border-radius: 5px;
-        }
-    </style>
+    <link rel="stylesheet" href="../static/styles.css"> 
 </head>
 <body>
+    <div class="dashboard-container">
 
-{% with messages = get_flashed_messages() %}
-    {% if messages %}
-        <ul class=flashes>
-        {% for message in messages %}
-            <li>{{ message }}</li>
-        {% endfor %}
-        </ul>
-    {% endif %}
-{% endwith %}
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <ul class=flashes>
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
 
-<form method="post">
-    {{ form.hidden_tag() }}
-    <div>
-        {{ form.start_date.label }} {{ form.start_date }}
-        {% for error in form.start_date.errors %}
-            <span style="color: red;">[{{ error }}]</span>
-        {% endfor %}
+        <div class="dashboard-header">
+            <h2>Query Selection</h2>
+
+            <form method="post">
+                {{ form.hidden_tag() }}
+                <div>
+                    {{ form.start_date.label }} {{ form.start_date }}
+                    {% for error in form.start_date.errors %}
+                        <span style="color: red;">[{{ error }}]</span>
+                    {% endfor %}
+                </div>
+                <div>
+                    {{ form.end_date.label }} {{ form.end_date }}
+                    {% for error in form.end_date.errors %}
+                        <span style="color: red;">[{{ error }}]</span>
+                    {% endfor %}
+                </div>
+                <div>
+                    {{ form.submit }}
+                </div>
+            </form>
+
+            <!-- Logout Form -->
+            <form action="{{ url_for('auth.logout') }}" method="post">
+                {{ logout_form.hidden_tag() }}
+                <br>
+                <input type="submit" value="Logout">
+            </form>
+
+            {% if csv_filename %}
+                <a href="{{ url_for('main.download_csv', filename=csv_filename) }}" download>Download CSV</a>
+            {% endif %}
     </div>
-    <div>
-        {{ form.end_date.label }} {{ form.end_date }}
-        {% for error in form.end_date.errors %}
-            <span style="color: red;">[{{ error }}]</span>
-        {% endfor %}
-    </div>
-    <div>
-        {{ form.submit }}
-    </div>
-</form>
-
-<br><br>
-
-{% if csv_filename %}
-    <a href="{{ url_for('main.download_csv', filename=csv_filename) }}" download>Download CSV</a>
-{% endif %}
-
 </body>
 </html>

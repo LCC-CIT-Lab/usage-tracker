@@ -3,106 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <title>User Management</title>
-    <!-- Custom Styles -->
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: #333;
-        }
-        .wrapper {
-            text-align: center;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            background: white;
-            max-width: 400px;
-            padding: 20px;
-        }
-        .logo {
-            font-size: 2rem;
-            margin-bottom: 20px;
-        }
-        form {
-            display: flex;
-            flex-direction: column;
-        }
-        input[type='text'] {
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-            font-size: 16px;
-        }
-        input[type='submit'] {
-            padding: 10px;
-            font-size: 16px;
-            border-radius: 5px;
-            border: none;
-            background-color: #5cb85c;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        input[type='submit']:hover {
-            background-color: #4cae4c;
-        }
-        .alert {
-            margin-bottom: 20px;
-            padding: 10px;
-            background-color: #f44336;
-            color: white;
-            border-radius: 5px;
-        }
-    </style>
+    <link rel="stylesheet" href="../static/styles.css"> 
 </head>
 <body>
-<h2>User Management</h2>
-<br><br>
-<!-- Add user form -->
-<form action="{{ url_for('admin.user_management') }}" method="post">
-    {{ form.hidden_tag() }}
-    <input type="text" name="username" placeholder="Username" required>
-    <input type="email" name="email" placeholder="Email" required>
-    <input type="password" name="password" placeholder="Password" required>
-    <input type="checkbox" name="is_admin"> Admin?
-    <button type="submit" name="add">Add User</button>
-</form>
 
-<br><br>
-<!-- Users table -->
-<table>
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Admin</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for user in users %}
-        <tr>
-            <td>{{ user.id }}</td>
-            <td>{{ user.username }}</td>
-            <td>{{ user.email }}</td>
-            <td>{{ "Yes" if user.is_admin else "No" }}</td>
-            <td>
-                <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="post">
-                    {{ form.hidden_tag() }}
-                    <button type="submit" name="remove">Remove</button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <h2>User Management</h2>
+            <!-- Add user form -->
+            <h3>Add User</h3>
+            <form action="{{ url_for('admin.user_management') }}" method="post">
+                {{ form.hidden_tag() }}
+                <br><input type="text" name="username" placeholder="Username" required>
+                <br><input type="email" name="email" placeholder="Email" required>
+                <br><input type="password" name="password" placeholder="Password" required>
+                <br><input type="checkbox" name="is_admin"> Admin?
+                <br><button type="submit" name="add">Add User</button>
+            </form>
 
+            <!-- Users table -->
+            <br><br>
+            <h3>User Table</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Admin</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ "Yes" if user.is_admin else "No" }}</td>
+                        <td>
+                            <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="post">
+                                {{ form.hidden_tag() }}
+                                <button type="submit" name="remove">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <br>
+            
+            <!-- Logout Form -->
+            <form action="{{ url_for('auth.logout') }}" method="post">
+                {{ logout_form.hidden_tag() }}
+                <input type="submit" value="Logout">
+            </form>
+        </div>
+    </div>
 </body>
 </html>

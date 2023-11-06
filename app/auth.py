@@ -3,7 +3,8 @@ from itsdangerous.url_safe import URLSafeTimedSerializer as Serializer
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import LoginManager, login_user, logout_user
 from app.models import db, User 
-from app.forms import LoginForm
+from app.forms import LoginForm, LogoutForm
+from app.admin import create_admin
 from .config import load_config
 
 import subprocess
@@ -13,6 +14,14 @@ auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+
+    # Check if any admin exists
+    admin_exists = User.query.filter_by(is_admin=True).first() is not None
+
+    # If no admin exists, create an admin
+    if not admin_exists:
+        create_admin(current_app._get_current_object())
+
     form = LoginForm()
     if form.validate_on_submit():
         username = form.username.data
@@ -43,9 +52,11 @@ def login():
     return render_template('login.html', form=form)
 
 
-@auth_bp.route('/logout')
+@auth_bp.route('/logout', methods=['POST'])
 def logout():
+    form = LogoutForm()
     logout_user()
+    flash('You have been logged out.')
     return redirect(url_for('auth.login'))
 
 def encrypt_message(message, key):

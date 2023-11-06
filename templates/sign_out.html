@@ -2,59 +2,17 @@
 <html>
 <head>
     <title>Checkout</title>
-    <!-- Custom Styles -->
     <style>
-        /* Update body to add the background image */
         body {
-            /* ... existing styles ... */
-            background-image: url('../static/background.png'); /* Update with the correct path */
-            background-position: center top;
-            background-repeat: no-repeat;
-            background-size: cover; /* or 'contain' if you want the whole image visible */
-        }
-
-        /* Add styles for the button container */
-        .button-container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 0;
             display: flex;
-            justify-content: center; /* Center the buttons horizontally */
-            gap: 10px; /* Add some space between the buttons */
-            margin-top: 20px; /* Add some space above the button container */
-        }
-
-        /* Style for the button, making sure they look alike */
-        .btn {
-            /* ... existing styles ... */
-            text-align: center;
-            display: inline-block; /* Allows the application of padding and margins */
-            text-decoration: none; /* Removes underline from anchor tags */
-        }
-        .btn {
-            padding: 10px;
-            font-size: 16px;
-            border-radius: 5px;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        .btn-primary {
-            background-color: #5cb85c;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background-color: #4cae4c;
-        }
-
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-            text-decoration: none; /* This removes the underline from links */
-            display: inline-block; /* This allows padding and other box model properties */
-        }
-
-        .btn-secondary:hover {
-            background-color: #5a6268;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #333;
         }
         .wrapper {
             text-align: center;
@@ -92,6 +50,19 @@
         input[type='submit']:hover {
             background-color: #4cae4c;
         }
+        .button {
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: none;
+            background-color: #5cb85c;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #4cae4c;
+        }
         .alert {
             margin-bottom: 20px;
             padding: 10px;
@@ -107,19 +78,19 @@
     </script>
 </head>
 <body>
-
-<form method="post">
-    {{ form.hidden_tag() }}
-    <input type="hidden" name="l_number" value="{{ request.args.get('l_number') }}">
-    <label for="comment">{{ form.comment.label.text }}</label> <!-- Assuming you want to show the label -->
-    {{ form.comment(size=32) }}
-    <!-- Button container for side by side buttons -->
-    <div class="button-container">
-        <input type="submit" class="btn btn-primary" value="Submit Comment">
-        <!-- Skip Comment Link styled as a button -->
-        <a href="{{ url_for('main.landing') }}" class="btn btn-secondary">Skip Comment</a>
+    <div class="wrapper">
+        <form method="post">
+            {{ form.hidden_tag() }}
+            <input type="hidden" name="l_number" value="{{ request.args.get('l_number') }}">
+            <label for="comment">{{ form.comment.label.text }}</label> <!-- Assuming you want to show the label -->
+            {{ form.comment(size=32) }}
+            <!-- Button container for side by side buttons -->
+            <div class="button-container">
+                <input type="submit" class="btn btn-primary" value="Submit Comment">
+                <!-- Skip Comment Link styled as a button -->
+                <a href="{{ url_for('main.landing') }}" class="button">Skip Comment</a>
+            </div>
+        </form>
     </div>
-</form>
-
 </body>
 </html>

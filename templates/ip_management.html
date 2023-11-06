@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="../static/styles.css"> 
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <!-- Add this part to display flashed messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Add IP Mapping Form -->
+        <div class="dashboard-header">
+            <h2>IP Management</h2>
+            <div class="add-ip-form">
+                <h3>Add IP Mapping</h3>
+                <form method="post" action="{{ url_for('main.ip_management') }}">
+                    {{ add_ip_form.hidden_tag() }}
+                    <p>
+                        {{ add_ip_form.ip_address.label }}<br>
+                        {{ add_ip_form.ip_address(size=32) }}
+                    </p>
+                    <p>
+                        {{ add_ip_form.location_name.label }}<br>
+                        {{ add_ip_form.location_name(size=32) }}
+                    </p>
+                    <p>{{ add_ip_form.submit() }}</p>
+                </form>
+            </div>
+            <div class="remove-ip-form">
+                <h3>Remove IP Mapping</h3>
+                <form method="post" action="{{ url_for('main.ip_management') }}">
+                    {{ remove_ip_form.hidden_tag() }}
+                    <p>
+                        {{ remove_ip_form.remove_location_name.label }}<br>
+                        {{ remove_ip_form.remove_location_name(size=32) }}
+                    </p>
+                    <p>{{ remove_ip_form.remove_submit() }}</p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Logout Form -->
+        <form action="{{ url_for('auth.logout') }}" method="post">
+            {{ logout_form.hidden_tag() }}
+            <input type="submit" value="Logout">
+        </form>
+</body>
+</html>

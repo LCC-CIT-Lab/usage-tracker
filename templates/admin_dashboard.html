@@ -3,96 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <title>Admin Dashboard</title>
-    <!-- Custom Styles -->
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: #333;
-        }
-        .wrapper {
-            text-align: center;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            background: white;
-            max-width: 400px;
-            padding: 20px;
-        }
-        .logo {
-            font-size: 2rem;
-            margin-bottom: 20px;
-        }
-        form {
-            display: flex;
-            flex-direction: column;
-        }
-        input[type='text'] {
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-            font-size: 16px;
-        }
-        input[type='submit'] {
-            padding: 10px;
-            font-size: 16px;
-            border-radius: 5px;
-            border: none;
-            background-color: #5cb85c;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        input[type='submit']:hover {
-            background-color: #4cae4c;
-        }
-        .alert {
-            margin-bottom: 20px;
-            padding: 10px;
-            background-color: #f44336;
-            color: white;
-            border-radius: 5px;
-        }
-    </style>
+    <link rel="stylesheet" href="../static/styles.css"> 
 </head>
 <body>
-    <h1>Admin Dashboard</h1>
-    <p>Welcome, {{ current_user.username }}!</p>
-    <ul>
-        <li><a href="{{ url_for('admin.user_management') }}">User Management</a></li>
-        <li><a href="{{ url_for('main.query_selection') }}">Query Selection</a></li>
-        <li>
-            <h2>Add Lab Location</h2>
-            <form method="post">
-                {{ form.hidden_tag() }}
-                <p>
-                    {{ form.new_lab_location.label }}<br>
-                    {{ form.new_lab_location(size=20) }}
-                </p>
-                <p>{{ form.add_submit }}</p>
-            </form>
-        </li>
-        <li>
-            <h2>Remove Lab Location</h2>
-            <form method="post">
-                {{ form.hidden_tag() }}
-                <p>
-                    {{ form.remove_lab_location.label }}<br>
-                    {{ form.remove_lab_location() }}
-                </p>
-                <p>{{ form.remove_submit }}</p>
-            </form>
-        </li>        
-        <!-- Add other admin links as needed -->
-    </ul>
-    <form action="{{ url_for('auth.logout') }}" method="post">
-        <input type="submit" value="Logout">
-    </form>
+    <div class="dashboard-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="dashboard-header">
+            <h1>Admin Dashboard</h1>
+            <p>Welcome, {{ current_user.username }}!</p>
+        </div>
+        <ul class="dashboard-menu">
+            <li><a href="{{ url_for('admin.user_management') }}">User Management</a></li>
+            <li><a href="{{ url_for('main.query_selection') }}">Query Selection</a></li>
+            <li><a href="{{ url_for('main.ip_management') }}">IP Management</a></li>
+            <!-- Add other admin links as needed -->
+        </ul>
+        <form action="{{ url_for('auth.logout') }}" method="post">
+            {{ logout_form.hidden_tag() }}
+            <input type="submit" value="Logout">
+        </form>
+    </div>
 </body>
 </html>

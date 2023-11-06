@@ -5,8 +5,8 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from io import StringIO
-from app.models import db, SignInData, LabLocation  # Assuming models.py contains the SQLAlchemy models
-from app.forms import LandingForm, SignInForm, SignOutForm, LoginForm, QuerySelectionForm, CSRFProtectForm
+from app.models import db, SignInData, IPLocation
+from app.forms import LandingForm, LogoutForm, SignInForm, SignOutForm, LoginForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, CSRFProtectForm
 from .config import load_config
 
 import csv
@@ -35,6 +35,10 @@ def landing():
         l_number = form.l_number.data
         valid_l_number = False
 
+        # Prepend 'L' if it's not already there
+        if not l_number.upper().startswith('L'):
+            l_number = f'L{l_number}'
+            
         try:
             with open('students.tsv', 'r') as file:
                 reader = csv.reader(file, delimiter='\t')
@@ -97,23 +101,55 @@ def landing():
 @main_bp.route('/sign-in', methods=['GET', 'POST'])
 def sign_in():
     form = SignInForm()
-
-    classes = request.args.getlist('classes[]') or []
     
-    form.lab_location.choices = [(location.id, location.name) for location in LabLocation.query.all()]
-    form.class_selected.choices = [(cls, cls) for cls in classes]
+    # Get the user's IP address
+    user_ip = request.remote_addr
+    # Look up the lab location based on the IP address
+    ip_location = IPLocation.query.filter_by(ip_address=user_ip).first()
+    lab_location_name = ip_location.location_name if ip_location else "Unknown Location"
 
-    # Prepopulate form if l_number and classes are provided in query string
-    l_number = request.args.get('l_number')
-    classes = request.args.getlist('classes[]')
+    # Get l_number and available_classes from the request or set defaults
+    l_number = request.args.get('l_number', '')
+    available_classes = request.args.getlist('classes[]') or []
+
+    # On GET request, store the available classes in the session
+    if request.method == 'GET':
+        available_classes = request.args.getlist('classes[]') or []
+        session['available_classes'] = available_classes
+        current_app.logger.debug(f"GET - Available classes: {available_classes}")
+
+    else:
+        # On POST request, retrieve the available classes from the session
+        available_classes = session.get('available_classes', [])
+        current_app.logger.debug(f"POST - Available classes from session: {available_classes}")
+
+    # Set the form choices from the available classes
+    form.class_selected.choices = [(cls, cls) for cls in available_classes]
+    current_app.logger.debug(f"Form choices before validation: {form.class_selected.choices}")
+
+    # Pre-populate form fields if l_number is provided in the query string
     if l_number:
         form.l_number.data = l_number
         form.l_number.render_kw = {'readonly': True}
-    if classes:
-        form.class_selected.choices = [(cls, cls) for cls in classes]
 
+    # Debug: Print available classes
+    print("Available classes:", available_classes)
+
+    # Debug: Print form choices before validation
+    print("Form choices before validation:", form.class_selected.choices)
+
+    # IMPORTANT: Set the choices for the POST request BEFORE form validation
+    if request.method == 'POST':
+        # You must retrieve and set the choices again from the database or session
+        # because the form doesn't maintain state between requests
+        form.class_selected.choices = [(cls, cls) for cls in available_classes]
+
+        # Debug: Print form choices on POST request before validation
+        print("Form choices on POST request before validation:", form.class_selected.choices)
+
+    # Process the valid form submission
     if form.validate_on_submit():
-        lab_location = form.lab_location.data
+        l_number = form.l_number.data
         class_selected = form.class_selected.data
 
         # Check if student is already signed in today
@@ -138,7 +174,7 @@ def sign_in():
 
         sign_in_data = SignInData(
             l_number=l_number,
-            lab_location=lab_location,
+            lab_location=lab_location_name,  # Use the lab location name determined by IP
             class_selected=class_selected,
             sign_in_timestamp=datetime.now()
         )
@@ -152,16 +188,13 @@ def sign_in():
             db.session.rollback()
             current_app.logger.error(f'Error signing in: {e}')
             flash('An error occurred while signing in.', 'error')
-    else:
-        # If the form doesn't validate, this will log the errors
-        for fieldName, errorMessages in form.errors.items():
-            for err in errorMessages:
-                current_app.logger.error(f'Error in {fieldName}: {err}')
-
-    form.populate_lab_locations()
 
     # If it's a GET request or if the form didn't validate, return the sign-in page
-    return render_template('sign_in.html', form=form)
+    # Debug: Print form errors if there are any
+    if form.errors:
+        print("Form errors:", form.errors)
+ 
+    return render_template('sign_in.html', form=form, lab_location_name=lab_location_name)
 
 @main_bp.route('/sign-out', methods=['GET', 'POST'])
 def checkout():
@@ -235,6 +268,7 @@ def download_csv(filename):
 @login_required
 def query_selection():
     form = QuerySelectionForm()
+    logout_form = LogoutForm()
 
     if form.validate_on_submit():
         start_date = form.start_date.data
@@ -265,15 +299,87 @@ def query_selection():
         session['csv_filename'] = csv_filename
 
         # Add the filename to the template context
-        return render_template('query_selection.html', form=form, data=data, csv_filename=csv_filename)
+        return render_template('query_selection.html', form=form, logout_form=logout_form, data=data, csv_filename=csv_filename)
     
     else:
         if request.method == 'POST':
             flash('Form submission is invalid', 'error')
 
     # If it's a GET request or the POST request is processed, show the same query selection page without the download link
-    return render_template('query_selection.html', form=form, csv_filename=None)
+    return render_template('query_selection.html', form=form, logout_form=logout_form, csv_filename=None)
 
+@main_bp.route('/ip-management', methods=['GET', 'POST'])
+@login_required
+def ip_management():
+    add_ip_form = AddIPMappingForm()
+    remove_ip_form = RemoveIPMappingForm()
+    logout_form = LogoutForm()
+
+    # Inspect the attributes of the submit field
+    print("Submit field attributes:")
+    print("Label:", add_ip_form.submit.label.text)
+    print("Name:", add_ip_form.submit.name)
+    print("Data:", add_ip_form.submit.data)
+    
+    # Inspect the attributes of the remove submit field
+    print("Remove submit field attributes:")
+    print("Label:", remove_ip_form.remove_submit.label.text)
+    print("Name:", remove_ip_form.remove_submit.name)
+    print("Data:", remove_ip_form.remove_submit.data)
+    print("Form data:", request.form)  # Add this to log form data
+
+    if request.method == 'POST':
+        if add_ip_form.validate_on_submit():
+            current_app.logger.info('Attempting to add IP mapping.')
+            # Logic to add an IP mapping
+            new_ip_location = IPLocation(
+                ip_address=add_ip_form.ip_address.data,
+                location_name=add_ip_form.location_name.data
+            )
+            db.session.add(new_ip_location)
+            try:
+                db.session.commit()
+                flash('IP mapping added successfully.', 'success')
+                current_app.logger.info('IP mapping removed successfully.')
+
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error adding IP mapping: {e}', 'error')
+                current_app.logger.warning('Add IP Form did not validate.')
+
+        elif remove_ip_form.validate_on_submit():
+            current_app.logger.info('Attempting to remove IP mapping.')
+            # Logic to remove an IP mapping
+            location_to_remove = remove_ip_form.remove_location_name.data
+            ip_location = IPLocation.query.filter_by(location_name=location_to_remove).first()
+            if ip_location:
+                db.session.delete(ip_location)
+                try:
+                    db.session.commit()
+                    flash('IP mapping removed successfully.', 'success')
+                    current_app.logger.info('IP mapping removed successfully.')
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f'Error removing IP mapping: {e}', 'error')
+            else:
+                flash('Location name not found.', 'error')
+
+    return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form, logout_form=logout_form)
+
+@main_bp.route('/set-message', methods=['GET', 'POST'])
+@login_required
+def set_message():
+    if not current_user.can_set_message:
+        flash('You do not have permission to set a message.', 'error')
+        return redirect(url_for('main.landing'))
+
+    form = MessageForm()
+    if form.validate_on_submit():
+        # Logic to set the message for the lab
+        flash('Your message has been set.', 'success')
+        return redirect(url_for('main.landing'))
+
+    return render_template('set_message.html', form=form)
 
 def send_comment_to_support(l_number, comment):
     # Load configuration

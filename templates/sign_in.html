@@ -58,41 +58,37 @@
             color: white;
             border-radius: 5px;
         }
-        .error {
-        color: #f44336;
-        font-size: 0.8em;
-        }
     </style>
 </head>
 <body>
-<!-- sign_in.html -->
-<form method="post" action="{{ url_for('main.sign_in') }}">
-    {{ form.hidden_tag() }}
-    <div>
-        {{ form.l_number.label }}
-        {{ form.l_number }}
-        {% if form.l_number.errors %}
-            <div class="error">{{ form.l_number.errors[0] }}</div>
-        {% endif %}
-    </div>
-    <div>
-        {{ form.lab_location.label }} {{ form.lab_location }}
-        {% if form.lab_location.errors %}
-            <div class="error">{{ form.lab_location.errors[0] }}</div>
-        {% endif %}
-    </div>
-    <div>
-        {{ form.class_selected.label }} {{ form.class_selected }}
-        {% if form.class_selected.errors %}
-            <div class="error">{{ form.class_selected.errors[0] }}</div>
-        {% endif %}
-    </div>
-    <input type="submit" value="Sign In">
-</form>
 
-{% for message in get_flashed_messages() %}
-    <div class="alert">{{ message }}</div>
-{% endfor %}
+<div class="wrapper">
+    <!-- sign_in.html -->
+    <form method="post" action="{{ url_for('main.sign_in') }}">
+        {{ form.hidden_tag() }}
+        <div>
+            {{ form.l_number.label }}
+            {{ form.l_number }}
+            {% if form.l_number.errors %}
+                <div class="error">{{ form.l_number.errors[0] }}</div>
+            {% endif %}
+        </div>
+        <div>
+            <label for="lab_location">Lab Location: </label>
+            {{ lab_location_name }}
+        </div><br>
+        <div>
+            {{ form.class_selected.label }} {{ form.class_selected }}
+            {% if form.class_selected.errors %}
+                <div class="error">{{ form.class_selected.errors[0] }}</div>
+            {% endif %}
+        </div><br>
+        <input type="submit" value="Sign In">
+    </form>
 
+    {% for message in get_flashed_messages() %}
+        <div class="alert">{{ message }}</div>
+    {% endfor %}
+</div>
 </body>
 </html>
