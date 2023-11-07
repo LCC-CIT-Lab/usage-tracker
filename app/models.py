@@ -14,6 +14,8 @@ class SignInData(db.Model):
     sign_in_timestamp = db.Column(db.DateTime, nullable=False)
     sign_out_timestamp = db.Column(db.DateTime, nullable=True)
     comments = db.Column(db.Text, nullable=True)
+    ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
+
 
 class User(UserMixin, db.Model):
     # Database model for User
@@ -25,6 +27,8 @@ class User(UserMixin, db.Model):
     is_default_password = db.Column(db.Boolean, default=True, nullable=False)
     can_set_message = db.Column(db.Boolean, default=False)
     can_access_query_selection = db.Column(db.Boolean, default=False)
+    ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
+
     
     def set_password(self, password):
         self.hashed_password = generate_password_hash(password)
@@ -37,6 +41,7 @@ class IPLocation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ip_address = db.Column(db.String(45))
     location_name = db.Column(db.String(100))
+    sign_ins = db.relationship('SignInData', backref='ip_location', lazy='dynamic')
 
     def __repr__(self):
-        return f'<IPLocation {self.ip} - {self.location_name}>'
+        return f'<IPLocation {self.ip_address} - {self.location_name}>'

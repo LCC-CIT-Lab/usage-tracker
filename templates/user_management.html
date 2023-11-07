@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>User Management</title>
-    <link rel="stylesheet" href="../static/styles.css"> 
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
 </head>
 <body>
 
@@ -18,6 +18,8 @@
                 <br><input type="email" name="email" placeholder="Email" required>
                 <br><input type="password" name="password" placeholder="Password" required>
                 <br><input type="checkbox" name="is_admin"> Admin?
+                <br><input type="checkbox" name="can_set_message"> Can Set Message?
+                <br><input type="checkbox" name="can_access_query_selection"> Can Access Query Selection?
                 <br><button type="submit" name="add">Add User</button>
             </form>
 
@@ -31,6 +33,8 @@
                         <th>Username</th>
                         <th>Email</th>
                         <th>Admin</th>
+                        <th>Can Set Message?</th>
+                        <th>IP Mapping Name</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -41,7 +45,28 @@
                         <td>{{ user.username }}</td>
                         <td>{{ user.email }}</td>
                         <td>{{ "Yes" if user.is_admin else "No" }}</td>
+                        <td>{{ "Yes" if user.can_set_message else "No" }}</td>
                         <td>
+                            <!-- Display the IP mapping name if available -->
+                            {{ user.ip_location.location_name if user.ip_location else "Not Set" }}
+                        </td>
+                        <td>
+                            <!-- Update form to include enabling/disabling permissions and setting IP mapping name -->
+                            <form action="{{ url_for('admin.update_user_permissions', user_id=user.id) }}" method="post">
+                                {{ form.hidden_tag() }}
+                                <button type="submit" name="toggle_can_set_message">Toggle Message Permission</button>
+                                <!-- Dropdown for IP mapping names -->
+                                <select name="ip_mapping_name">
+                                    <option value="">Select IP Mapping</option>
+                                    {% for ip_location in ip_locations %}
+                                    <option value="{{ ip_location.id }}" {% if user.ip_location_id == ip_location.id %} selected {% endif %}>
+                                        {{ ip_location.location_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" name="update_ip_mapping">Update IP Mapping</button>
+                            </form>
+                            <!-- Existing remove user form -->
                             <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="post">
                                 {{ form.hidden_tag() }}
                                 <button type="submit" name="remove">Remove</button>

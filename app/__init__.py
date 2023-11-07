@@ -25,6 +25,8 @@ migrate = Migrate()
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
+    app.run(ssl_context='adhoc')   # The ssl_context='adhoc' is for demo purposes. Use proper SSL in production.
+
     # Load configuration
     config = load_config()
     print(config)  # Add this line to debug the config loading
@@ -34,6 +36,7 @@ def create_app():
 
     # Set configuration from the loaded config
     app.config['SECRET_KEY'] = app.config['encryption']['SECRET_KEY']
+    app.config['SESSION_COOKIE_SECURE'] = app.config['encryption']['SESSION_COOKIE_SECURE']
     app.config['SQLALCHEMY_DATABASE_URI'] = app.config['flask']['SQLALCHEMY_DATABASE_URI']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['DEBUG'] = config['flask']['DEBUG']

@@ -43,10 +43,10 @@ def login():
             # and either there is no next page or the next page is not admin_dashboard
             else:
                 if not next_page or url_for('admin.admin_dashboard') not in next_page:
-                    return redirect(url_for('main.query_selection'))
+                    return redirect(url_for('admin.admin_dashboard'))
                 else:
                     flash('Access denied: You do not have the necessary permissions.')
-                    return redirect(url_for('main.query_selection'))
+                    return redirect(url_for('admin.admin_dashboard'))
         else:
             flash('Invalid username or password.')
     return render_template('login.html', form=form)

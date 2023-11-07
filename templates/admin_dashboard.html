@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="../static/styles.css"> 
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
 </head>
 <body>
     <div class="dashboard-container">
@@ -16,13 +16,20 @@
         {% endwith %}
 
         <div class="dashboard-header">
-            <h1>Admin Dashboard</h1>
+            <h1>Dashboard</h1>
             <p>Welcome, {{ current_user.username }}!</p>
         </div>
         <ul class="dashboard-menu">
+            {% if current_user.is_admin %}
+            <!-- Only display this part to admin users -->
             <li><a href="{{ url_for('admin.user_management') }}">User Management</a></li>
-            <li><a href="{{ url_for('main.query_selection') }}">Query Selection</a></li>
             <li><a href="{{ url_for('main.ip_management') }}">IP Management</a></li>
+            <li><a href="{{ url_for('main.query_selection') }}">Query Selection</a></li>
+
+        {% else %}
+            <!-- Displayed to non-admin users -->
+            <li><a href="{{ url_for('main.query_selection') }}">Query Selection</a></li>
+        {% endif %}
             <!-- Add other admin links as needed -->
         </ul>
         <form action="{{ url_for('auth.logout') }}" method="post">

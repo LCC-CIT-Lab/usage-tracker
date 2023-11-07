@@ -58,10 +58,7 @@ def admin_dashboard():
         flash('Access denied: You do not have admin privileges.', 'error')
         return redirect(url_for('main.landing'))
 
-    return render_template(
-        'admin_dashboard.html',
-        logout_form=logout_form
-    )
+    return render_template('admin_dashboard.html', logout_form=logout_form)
 
 @admin_bp.route('/user_management', methods=['GET', 'POST'])
 @login_required
@@ -78,6 +75,8 @@ def user_management():
         email = request.form.get('email')
         password = request.form.get('password')
         is_admin = 'is_admin' in request.form  # This will be True if the Admin checkbox is checked
+        can_set_message = 'can_set_message' in request.form
+        can_access_query_selection = 'can_access_query_selection' in request.form
 
         # Perform input validation
         if not (username and email and password):
@@ -93,7 +92,9 @@ def user_management():
                     new_user = User(
                         username=username,
                         email=email,
-                        is_admin=is_admin
+                        is_admin=is_admin,
+                        can_set_message=can_set_message,
+                        can_access_query_selection=can_access_query_selection
                     )
                     new_user.set_password(password)  # Hashing the password here
                     db.session.add(new_user)
@@ -106,7 +107,38 @@ def user_management():
                     flash(f'An error occurred while creating the user: {e}', 'error')
 
     users = User.query.all()
-    return render_template('user_management.html', users=users, logout_form=logout_form, form=form)
+    ip_locations = IPLocation.query.all()
+    print(ip_locations)  # Add this line for debugging purposes
+
+    return render_template('user_management.html', users=users, logout_form=logout_form, form=form, ip_locations=ip_locations)
+
+@admin_bp.route('/update_user_permissions/<int:user_id>', methods=['POST'])
+@login_required
+def update_user_permissions(user_id):
+    if not current_user.is_admin:
+        flash('Access denied: You do not have the necessary permissions.')
+        return redirect(url_for('auth.login'))
+
+    user_to_update = User.query.get_or_404(user_id)
+    print(f"Before updates: can_set_message={user_to_update.can_set_message}, ip_location_id={user_to_update.ip_location_id}")
+
+    if 'toggle_can_set_message' in request.form:
+        user_to_update.can_set_message = not user_to_update.can_set_message
+        flash('User message permission updated.')
+
+    if 'update_ip_mapping' in request.form and 'ip_mapping_name' in request.form:
+        ip_mapping_id = int(request.form.get('ip_mapping_name')) if request.form.get('ip_mapping_name') else None
+        user_to_update.ip_location_id = ip_mapping_id
+        flash('User IP mapping updated.')
+
+    try:
+        print(f"After updates: can_set_message={user_to_update.can_set_message}, ip_location_id={user_to_update.ip_location_id}")
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash(f'An error occurred: {e}', 'error')
+
+    return redirect(url_for('admin.user_management'))
 
 @admin_bp.route('/delete_user/<int:user_id>', methods=['POST'])
 @login_required

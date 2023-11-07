@@ -1,4 +1,8 @@
-body {
+html, body {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f4f7f6;
     margin: 0;
@@ -12,6 +16,8 @@ h3 {text-align: center;}
     width: 100%;
     max-width: 600px; /* Adjust as needed */
     margin: 20px auto;
+    margin-top: -50px; /* Adjust as needed */
+    flex: 0 1 auto; /* Allows the container to shrink if needed */
     padding: 20px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     background: white;
@@ -20,6 +26,10 @@ h3 {text-align: center;}
 .dashboard-header {
     text-align: center;
     margin-bottom: 20px;
+    background-color: #f8f8f8;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 .dashboard-header h1 {
     font-size: 2rem;
@@ -49,6 +59,27 @@ h3 {text-align: center;}
 form {
     text-align: center;
 }
+.form-group {
+    display: flex;
+    align-items: center; /* This will vertically center align the items if they have different heights */
+    justify-content: center; /* This will create space between the label and the input or content */
+    margin-bottom: 15px;
+}
+
+.form-label {
+    flex-basis: 30%; /* Adjust the width of the label as needed */
+    margin-right: 10px; /* Provides some space between the label and the input or content */
+}
+
+.form-control, 
+.lab-location {
+    flex-grow: 1; /* Allows the input or content to take up the remaining space */
+}
+
+/* If you want to ensure that the label and the content are aligned to their respective sides */
+.form-group > *:first-child { 
+    margin-right: auto; 
+}
 input[type='submit'] {
     padding: 10px;
     font-size: 16px;
@@ -61,4 +92,50 @@ input[type='submit'] {
 }
 input[type='submit']:hover {
     background-color: #4cae4c;
+}
+.button {
+    padding: 10px;
+    font-size: 16px;
+    border-radius: 5px;
+    border: none;
+    background-color: #5cb85c;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.button:hover {
+    background-color: #4cae4c;
+}
+.sign-in-form .form-group {
+    margin-bottom: 15px;
+}
+
+.sign-in-form .form-label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.sign-in-form .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.sign-in-form .btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.sign-in-form .btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.lab-location {
+    display: inline-block;
+    margin-bottom: 10px; /* Adjust spacing as needed */
 }

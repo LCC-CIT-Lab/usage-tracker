@@ -4,92 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Landing Page</title>
-    <!-- Custom Styles -->
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: #333;
-        }
-        .wrapper {
-            text-align: center;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            background: white;
-            max-width: 400px;
-            padding: 20px;
-        }
-        .logo {
-            font-size: 2rem;
-            margin-bottom: 20px;
-        }
-        form {
-            display: flex;
-            flex-direction: column;
-        }
-        input[type='text'] {
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-            font-size: 16px;
-        }
-        input[type='submit'] {
-            padding: 10px;
-            font-size: 16px;
-            border-radius: 5px;
-            border: none;
-            background-color: #5cb85c;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        input[type='submit']:hover {
-            background-color: #4cae4c;
-        }
-        .alert {
-            margin-bottom: 20px;
-            padding: 10px;
-            background-color: #f44336;
-            color: white;
-            border-radius: 5px;
-        }
-    </style>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
 </head>
 <body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
 
-<div class="wrapper">
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            <div class="alert">
-                {{ messages[0] }}
-            </div>
-        {% endif %}
-    {% endwith %}
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="alert">
+                        {{ messages[0] }}
+                    </div>
+                {% endif %}
+            {% endwith %}
 
-    <div class="logo">Lab Sign-In</div>
+            <div class="dashboard-header"><h3>Lab Sign-In</h3></div>
 
-    <form method="post" action="{{ url_for('main.landing') }}">
-        {{ form.hidden_tag() }}
-        <div>
-            {{ form.l_number.label }}<br>
-            L-{{ form.l_number(size=32) }}
-            {% if form.l_number.errors %}
-                <div class="error">{{ form.l_number.errors[0] }}</div>
-            {% endif %}
+            <form method="post" action="{{ url_for('main.landing') }}">
+                {{ form.hidden_tag() }}
+                <div>
+                    {{ form.l_number.label }}<br>
+                    L-{{ form.l_number(size=32) }}
+                    {% if form.l_number.errors %}
+                        <div class="error">{{ form.l_number.errors[0] }}</div>
+                    {% endif %}
+                </div>
+                <br>
+                <div>
+                    <input type="submit" value="Submit">
+                </div>
+            </form>
+            <br>
+            <span id="sign-in-count" data-lab-id="{{ lab_id }}">Loading...</span>
+            <script>
+            $(document).ready(function() {
+                function updateSignedInCount() {
+                    // Use the data attribute to store and access the lab ID
+                    var labId = $('#sign-in-count').data('lab-id');
+                    if (labId) {
+                        $.ajax({
+                            url: '/current_sign_ins/' + labId,
+                            type: 'GET',
+                            dataType: 'json',
+                            success: function(response) {
+                                $('#sign-in-count').text(response.count + ' users signed in');
+                            },
+                            error: function() {
+                                $('#sign-in-count').text('Not available');
+                            }
+                        });
+                    } else {
+                        $('#sign-in-count').text('Not available');
+                    }
+                }
+                // Call the update function every 5 seconds
+                setInterval(updateSignedInCount, 5000);
+            });
+            </script>
         </div>
-        <div>
-            <input type="submit" value="Submit">
-        </div>
-    </form>
-    
-</div>
+    </div>
 
 </body>
 </html>
