@@ -6,26 +6,28 @@
     <script>
         setTimeout(function() {
             window.location.href = "{{ url_for('main.landing') }}";
-        }, 10000); // Redirect after 10 seconds
+        }, 15000); // Redirect after 15 seconds
     </script>
 </head>
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
             <h3>Email a comment or continue.</h3>
-        <form method="post">
-            {{ form.hidden_tag() }}
-            <input type="hidden" name="l_number" value="{{ request.args.get('l_number') }}">
-            <label for="comment">{{ form.comment.label.text }}</label> <!-- Assuming you want to show the label -->
-            {{ form.comment(size=32) }}<br>
-            <br>
-            <!-- Button container for side by side buttons -->
-            <div class="button-container">
-                <input type="submit" class="btn btn-primary" value="Submit Comment">
-                <!-- Skip Comment Link styled as a button -->
-                <a href="{{ url_for('main.landing') }}" class="button">Continue</a>
-            </div>
-        </form>
+        </div>
+        <div>
+            <form method="post">
+                {{ form.hidden_tag() }}
+                <input type="hidden" name="l_number" value="{{ request.args.get('l_number') }}">
+                <label for="comment">{{ form.comment.label.text }}</label> <!-- Assuming you want to show the label -->
+                {{ form.comment(size=32) }}
+                <br><br><br><br><br>
+                <div class="button-container">
+                    <input type="submit" class="btn btn-primary" value="Comment">
+                    <!-- Skip Comment Link styled as a button -->
+                    <a href="{{ url_for('main.landing') }}" class="button">Continue</a>
+                </div>
+            </form>
+        </div>
     </div>
 </body>
 </html>

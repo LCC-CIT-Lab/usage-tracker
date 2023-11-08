@@ -14,22 +14,23 @@ h2 {text-align: center;}
 h3 {text-align: center;}
 .dashboard-container {
     width: 100%;
-    max-width: 600px; /* Adjust as needed */
+    max-width: 700px; /* Adjust as needed */
     margin: 20px auto;
     margin-top: -50px; /* Adjust as needed */
     flex: 0 1 auto; /* Allows the container to shrink if needed */
     padding: 20px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 4px 8px 32px rgba(0, 0, 0, 0.1);
     background: white;
-    border-radius: 8px;
+    border-radius: 16px;
+    position: relative;
 }
 .dashboard-header {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     background-color: #f8f8f8;
     padding: 20px;
     border-radius: 5px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 .dashboard-header h1 {
     font-size: 2rem;
@@ -80,8 +81,18 @@ form {
 .form-group > *:first-child { 
     margin-right: auto; 
 }
-input[type='submit'] {
-    padding: 10px;
+.button-container {
+    display: flex;
+    margin-top: 20px;
+    justify-content: space-between; /* Keeps buttons at opposite ends */
+    position: absolute;
+    width: calc(100% - 40px); /* Width is the container's width minus padding */
+    bottom: 20px; /* Distance from the bottom of the container */
+    left: 20px; /* Aligns with the padding of the container */
+    padding: 0; /* Resets any padding that might affect alignment */
+}
+.button, input[type='submit'] {
+    padding: 10px 0px; /* Uniform padding for all buttons */
     font-size: 16px;
     border-radius: 5px;
     border: none;
@@ -89,23 +100,29 @@ input[type='submit'] {
     color: white;
     cursor: pointer;
     transition: background-color 0.3s;
+    text-align: center; /* Center the text inside the button */
+    /* Ensure the width of 'Back' and 'Logout' buttons are the same if needed */
+    min-width: 100px; /* Adjust as needed to fit the content */
 }
-input[type='submit']:hover {
+
+.button:hover, input[type='submit']:hover {
     background-color: #4cae4c;
 }
-.button {
-    padding: 10px;
-    font-size: 16px;
-    border-radius: 5px;
-    border: none;
-    background-color: #5cb85c;
-    color: white;
-    cursor: pointer;
-    transition: background-color 0.3s;
+
+/* Remove margins from the last button (Logout) to align properly */
+.button-container div:last-child {
+    margin-bottom: 0;
 }
-.button:hover {
-    background-color: #4cae4c;
+.button-container form {
+    margin-left: auto; /* Aligns the form to the right */
+    position: relative; /* Ensure stacking context is set for z-index */
+    z-index: 2; /* Higher z-index to be above other content */
 }
+/* Optional: Align text inside the form for the logout button */
+form {
+    margin: 0;
+}
+
 .sign-in-form .form-group {
     margin-bottom: 15px;
 }
@@ -138,4 +155,101 @@ input[type='submit']:hover {
 .lab-location {
     display: inline-block;
     margin-bottom: 10px; /* Adjust spacing as needed */
+}
+/* Existing CSS ... */
+
+/* Layout for form */
+.form-layout {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+/* Style for checkboxes */
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+/* Style for form buttons */
+.form-button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.form-button:hover {
+    background-color: #0056b3;
+}
+
+/* User table styling */
+.user-table {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.user-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.user-table th, .user-table td {
+    text-align: left;
+    padding: 8px;
+    border: 1px solid #ddd;
+}
+
+.user-table th {
+    background-color: #f2f2f2;
+}
+
+/* User action dropdown menu styling */
+.user-actions {
+    position: relative;
+    display: inline-block; /* This makes the dropdown align with the action button */
+}
+
+.action-button {
+    background-color: #28a745;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+}
+
+.action-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    z-index: 1;
+    background-color: #f9f9f9;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    padding: 12px 16px;
+}
+
+.user-actions:hover .action-menu {
+    display: block;
+}
+
+.action-menu form {
+    padding: 12px 16px;
+}
+
+#action-dropdown {
+    text-align: center;
+    margin-top: 20px;
+}
+
+#action-dropdown select {
+    width: 50%;
+    padding: 10px;
+    margin-top: 10px;
 }

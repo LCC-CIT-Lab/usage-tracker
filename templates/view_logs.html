@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>View Logs</title>
+    <title>User Management</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
 </head>
 <body>
+
     <div class="dashboard-container">
         <div class="dashboard-header">
-            <h1>Logs</h1>
+            <h2>View Logs</h2>
             <p>Recent activity logs for system administrators.</p>
         </div>
 
@@ -36,9 +37,17 @@
                 {% endfor %}
             </tbody>
         </table>
-
+        <br><br><br>
         <div class="button-container">
-            <a href="{{ url_for('admin.admin_dashboard') }}">Back to Dashboard</a>
+            <!-- Back Button -->
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+            <!-- Logout Button -->
+            <div>
+                <form action="{{ url_for('auth.logout') }}" method="post">
+                    {{ logout_form.hidden_tag() }}
+                    <button type="submit" class="button">Logout</button>
+                </form>
+            </div>
         </div>
     </div>
 </body>

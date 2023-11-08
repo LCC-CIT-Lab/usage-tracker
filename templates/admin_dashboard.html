@@ -16,9 +16,9 @@
         {% endwith %}
 
         <div class="dashboard-header">
-            <h1>Dashboard</h1>
-            <p>Welcome, {{ current_user.username }}!</p>
+            <h1>Admin Dashboard</h1>
         </div>
+        <p>Welcome, {{ current_user.username }}!</p>
         <ul class="dashboard-menu">
             {% if is_admin %}
             <!-- Only display this part to admin users -->
@@ -37,11 +37,17 @@
                 {% endif %}
             </li>
         </ul>
+        <br><br><br>
         <div class="button-container">
-            <form action="{{ url_for('auth.logout') }}" method="post">
-                {{ logout_form.hidden_tag() }}
-                <input type="submit" value="Logout">
-            </form>
+            <!-- Back Button -->
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+            <!-- Logout Button -->
+            <div>
+                <form action="{{ url_for('auth.logout') }}" method="post">
+                    {{ logout_form.hidden_tag() }}
+                    <button type="submit" class="button">Logout</button>
+                </form>
+            </div>
         </div>
     </div>
 </body>

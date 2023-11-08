@@ -1,9 +1,9 @@
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import UserMixin
+from flask_login import UserMixin, current_user
+from flask import has_app_context, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-
-import logging
+import logging, sys
 
 db = SQLAlchemy()
 
@@ -31,6 +31,7 @@ class User(UserMixin, db.Model):
     can_set_message = db.Column(db.Boolean, default=False)
     can_access_query_selection = db.Column(db.Boolean, default=False)
     ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
+    ip_location = db.relationship('IPLocation', backref='users', lazy=True)
 
     def set_password(self, password):
         self.hashed_password = generate_password_hash(password)
@@ -82,10 +83,20 @@ class LogEntry(db.Model):
 
 class DatabaseLogHandler(logging.Handler):
     def emit(self, record):
-        log_entry = LogEntry(
-            level=record.levelname,
-            message=record.getMessage(),
-            # user_id=current_user.id if current_user else None  # Uncomment if you want to associate logs with users
-        )
-        db.session.add(log_entry)
-        db.session.commit()
+        try:
+            if has_app_context():
+                try:
+                    log_entry = LogEntry(
+                        level=record.levelname,
+                        message=record.getMessage(),
+                        user_id=getattr(current_user, 'id', None) if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated else None
+                    )
+                    db.session.add(log_entry)
+                    db.session.commit()
+                except Exception as e:
+                    current_app.logger.error("Failed to log message to database: %s", str(e))
+        except Exception as e:
+            # Log the error using a separate logger or print to stderr
+            print(f"Failed to log message to database: {e}", file=sys.stderr)
+            db.session.rollback()
+

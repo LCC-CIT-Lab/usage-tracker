@@ -20,43 +20,45 @@
         <!-- Add Set Message Form -->
         <div class="dashboard-header">
             <h2>Set Landing Message</h2>
-            <div class="add-ip-form">
-                <h3>Add Landing Message</h3>
-            <!-- set_message.html -->
-                <form method="post">
+        </div>
+        <div class="add-ip-form">
+            <h3>Add Landing Message</h3>
+        <!-- set_message.html -->
+            <form method="post">
+                {{ form.hidden_tag() }}
+                <div>
+                    {{ form.content(rows=4, title="Allowed HTML tags: a, img, p, br, strong, em, ul, li, ol. For links, use 'href', 'title', 'target', 'rel'. For images, use 'src', 'alt', 'width', 'height'.") }}
+                    {% for error in form.content.errors %}
+                        <span style="color: red;">[{{ error }}]</span>
+                    {% endfor %}
+                </div>
+                <div>
+                    {{ form.submit() }}
+                </div>
+            </form>
+            <br><br>
+            <!-- Display existing messages -->
+            {% for message in existing_messages %}
+            <div class="existing-message">
+                <p>{{ message.content }}</p>
+                <!-- Delete button form for each message -->
+                <form action="{{ url_for('main.delete_message', message_id=message.id) }}" method="post">
                     {{ form.hidden_tag() }}
-                    <div>
-                        {{ form.content(rows=4, title="Allowed HTML tags: a, img, p, br, strong, em, ul, li, ol. For links, use 'href', 'title', 'target', 'rel'. For images, use 'src', 'alt', 'width', 'height'.") }}
-                        {% for error in form.content.errors %}
-                            <span style="color: red;">[{{ error }}]</span>
-                        {% endfor %}
-                    </div>
-                    <div>
-                        {{ form.submit() }}
-                    </div>
+                    <input type="submit" value="Delete">
                 </form>
-                <br><br>
-                <!-- Display existing messages -->
-                {% for message in existing_messages %}
-                <div class="existing-message">
-                    <p>{{ message.content }}</p>
-                    <!-- Delete button form for each message -->
-                    <form action="{{ url_for('main.delete_message', message_id=message.id) }}" method="post">
-                        {{ form.hidden_tag() }}
-                        <input type="submit" value="Delete">
-                    </form>
-                </div>
-                {% endfor %}
-                <br><br>
-                <div class="button-container">
-                    <!-- Logout Form -->
-                    <form action="{{ url_for('auth.logout') }}" method="post">
-                        {{ logout_form.hidden_tag() }}
-                        <input type="submit" value="Logout">
-                    </form>
-                    <br>
-                    <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
-                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <br><br><br>
+        <div class="button-container">
+            <!-- Back Button -->
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+            <!-- Logout Button -->
+            <div>
+                <form action="{{ url_for('auth.logout') }}" method="post">
+                    {{ logout_form.hidden_tag() }}
+                    <button type="submit" class="button">Logout</button>
+                </form>
             </div>
         </div>
     </div>

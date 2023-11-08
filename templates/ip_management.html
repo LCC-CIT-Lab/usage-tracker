@@ -20,40 +20,43 @@
         <!-- Add IP Mapping Form -->
         <div class="dashboard-header">
             <h2>IP Management</h2>
-            <div class="add-ip-form">
-                <h3>Add IP Mapping</h3>
-                <form method="post" action="{{ url_for('main.ip_management') }}">
-                    {{ add_ip_form.hidden_tag() }}
-                    <p>
-                        {{ add_ip_form.ip_address.label }}<br>
-                        {{ add_ip_form.ip_address(size=32) }}
-                    </p>
-                    <p>
-                        {{ add_ip_form.location_name.label }}<br>
-                        {{ add_ip_form.location_name(size=32) }}
-                    </p>
-                    <p>{{ add_ip_form.submit() }}</p>
-                </form>
-            </div>
-            <div class="remove-ip-form">
-                <h3>Remove IP Mapping</h3>
-                <form method="post" action="{{ url_for('main.ip_management') }}">
-                    {{ remove_ip_form.hidden_tag() }}
-                    <p>
-                        {{ remove_ip_form.remove_location_name.label }}<br>
-                        {{ remove_ip_form.remove_location_name(size=32) }}
-                    </p>
-                    <p>{{ remove_ip_form.remove_submit() }}</p>
-                </form>
-            </div>
-            <div class="button-container">
-                <!-- Logout Form -->
+        </div>
+        <div class="add-ip-form">
+            <h3>Add IP Mapping</h3>
+            <form method="post" action="{{ url_for('main.ip_management') }}">
+                {{ add_ip_form.hidden_tag() }}
+                <p>
+                    {{ add_ip_form.ip_address.label }}<br>
+                    {{ add_ip_form.ip_address(size=32) }}
+                </p>
+                <p>
+                    {{ add_ip_form.location_name.label }}<br>
+                    {{ add_ip_form.location_name(size=32) }}
+                </p>
+                <p>{{ add_ip_form.submit() }}</p>
+            </form>
+        </div>
+        <div class="remove-ip-form">
+            <h3>Remove IP Mapping</h3>
+            <form method="post" action="{{ url_for('main.ip_management') }}">
+                {{ remove_ip_form.hidden_tag() }}
+                <p>
+                    {{ remove_ip_form.remove_location_name.label }}<br>
+                    {{ remove_ip_form.remove_location_name(size=32) }}
+                </p>
+                <p>{{ remove_ip_form.remove_submit() }}</p>
+            </form>
+        </div>
+        <br><br><br>
+        <div class="button-container">
+            <!-- Back Button -->
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+            <!-- Logout Button -->
+            <div>
                 <form action="{{ url_for('auth.logout') }}" method="post">
                     {{ logout_form.hidden_tag() }}
-                    <input type="submit" value="Logout">
+                    <button type="submit" class="button">Logout</button>
                 </form>
-                <br>
-                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
             </div>
         </div>
     </div>

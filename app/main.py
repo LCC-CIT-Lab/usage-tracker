@@ -37,6 +37,7 @@ def landing():
     lab_location = None
     lab_id = request.args.get('lab_id')
     print(f'Received lab_id from query parameters: {lab_id}')
+    lab_location_name = get_lab_name(request.remote_addr)
 
     # If lab_id is not in the query parameters, then get it from the IP address
     if not lab_id:
@@ -70,8 +71,6 @@ def landing():
             flash('Invalid L number, please sign-in again.')
             return redirect(url_for('main.landing', lab_id=lab_id))
 
-        sign_out_previous_day_students()  # Use the sign_out_previous_day_students function
-
         if student_signed_in_today(l_number):  # Use the student_signed_in_today function
             return handle_existing_sign_in(l_number)  # Use the handle_existing_sign_in function
 
@@ -83,7 +82,7 @@ def landing():
         form.csrf_token.data = csrf_token
 
         print(f'Rendering template with lab_location: {lab_location} and lab_id: {lab_id}')
-        return render_template('landing.html', lab_location=lab_location, form=form, lab_id=lab_id)
+        return render_template('landing.html', lab_location=lab_location, lab_location_name=lab_location_name, form=form, lab_id=lab_id)
 
 
 @main_bp.route('/sign-in', methods=['GET', 'POST'])
@@ -172,16 +171,6 @@ def student_exists(l_number):
                 return True
     return False
 
-def sign_out_previous_day_students():
-    """Sign out students who signed in the previous day and haven't signed out yet."""
-    yesterday = (datetime.now() - timedelta(days=1)).date()
-    students_signed_in_yesterday = SignInData.query.filter(
-        SignInData.sign_in_timestamp <= yesterday,
-        SignInData.sign_out_timestamp.is_(None)
-    ).all()
-    for student in students_signed_in_yesterday:
-        student.sign_out_timestamp = datetime.now()
-    db.session.commit()
 
 def get_student_today(l_number):
     """Get the most recent sign-in record for the student for today."""
@@ -196,6 +185,13 @@ def get_lab_info(ip_address):
     if ip_location:
         return ip_location.location_name, ip_location.id
     return "Unknown Location", None
+
+def get_lab_name(ip_address):
+    """Retrieve lab location based on the user's IP address."""
+    ip_location = IPLocation.query.filter_by(ip_address=ip_address).first()
+    if ip_location:
+        return ip_location.location_name
+    return "Unknown Location"
 
 def student_signed_in_today(l_number):
     """Check if the student is already signed in today."""
