@@ -1,9 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from datetime import datetime
 
 db = SQLAlchemy()
+
 
 class SignInData(db.Model):
     # Database model for SignInData
@@ -29,12 +30,12 @@ class User(UserMixin, db.Model):
     can_access_query_selection = db.Column(db.Boolean, default=False)
     ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
 
-    
     def set_password(self, password):
         self.hashed_password = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.hashed_password, password)
+
 
 class IPLocation(db.Model):
     # Database model for storing IPLocation
@@ -45,3 +46,23 @@ class IPLocation(db.Model):
 
     def __repr__(self):
         return f'<IPLocation {self.ip_address} - {self.location_name}>'
+
+
+class TermDates(db.Model):
+    __tablename__ = 'term_dates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    term_name = db.Column(db.String(100), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+
+
+class LabMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.String(255), nullable=False)
+    lab_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'), nullable=False)  # Corrected this line
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    lab_location = db.relationship('IPLocation', backref=db.backref('messages', lazy=True))  # Corrected this line
+    user = db.relationship('User', backref=db.backref('messages', lazy=True))

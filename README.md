@@ -43,6 +43,8 @@ Follow these steps to set up your project:
 
 5. Initialize the database:
    ```sh
+   flask db init
+   flask db migrate
    flask db upgrade
    ```
 

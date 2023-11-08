@@ -77,12 +77,15 @@
                 </tbody>
             </table>
             <br>
-            
-            <!-- Logout Form -->
-            <form action="{{ url_for('auth.logout') }}" method="post">
-                {{ logout_form.hidden_tag() }}
-                <input type="submit" value="Logout">
-            </form>
+            <div class="button-container">
+                <!-- Logout Form -->
+                <form action="{{ url_for('auth.logout') }}" method="post">
+                    {{ logout_form.hidden_tag() }}
+                    <input type="submit" value="Logout">
+                </form>
+                <br>
+                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+            </div>
         </div>
     </div>
 </body>

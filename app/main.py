@@ -2,11 +2,11 @@ from flask import Blueprint, jsonify, render_template, request, redirect, url_fo
 from flask_login import login_required, current_user
 from flask_wtf.csrf import generate_csrf, validate_csrf
 from itsdangerous import URLSafeTimedSerializer, BadSignature
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from email.mime.text import MIMEText
 from io import StringIO
-from app.models import db, SignInData, IPLocation
-from app.forms import LandingForm, LogoutForm, SignInForm, SignOutForm, LoginForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, CSRFProtectForm
+from app.models import db, SignInData, IPLocation, TermDates
+from app.forms import MessageForm, LandingForm, LogoutForm, SignInForm, SignOutForm, LoginForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, CSRFProtectForm
 from .config import load_config
 
 import csv
@@ -15,9 +15,11 @@ import os
 
 main_bp = Blueprint('main', __name__)
 
+
 def generate_csrf_token(secret_key):
     serializer = URLSafeTimedSerializer(secret_key)
     return serializer.dumps({})  # Empty dict as the payload
+
 
 def validate_csrf_token(token, secret_key, max_age=3600):
     serializer = URLSafeTimedSerializer(secret_key)
@@ -31,6 +33,15 @@ def validate_csrf_token(token, secret_key, max_age=3600):
 def landing():
     form = LandingForm()
 
+    lab_id = request.args.get('lab_id', None)  # Get lab_id from query parameter
+    if lab_id is not None:
+        try:
+            lab_id = int(lab_id)  # Make sure that lab_id is an integer
+            session['lab_id'] = lab_id  # Store lab_id in session
+        except ValueError:
+            flash('Invalid lab ID', 'error')
+            lab_id = None
+
     if form.validate_on_submit():
         l_number = form.l_number.data.upper()  # Convert to upper case to handle case-insensitivity
         # Prepend 'L' if it's not already there
@@ -41,7 +52,7 @@ def landing():
 
         if not student_exists(l_number):  # Use the student_exists function
             flash('Invalid L number, please sign-in again.')
-            return redirect(url_for('main.landing'))
+            return redirect(url_for('main.landing', lab_id=lab_id))
 
         sign_out_previous_day_students()  # Use the sign_out_previous_day_students function
 
@@ -49,12 +60,12 @@ def landing():
             return handle_existing_sign_in(l_number)  # Use the handle_existing_sign_in function
 
         classes = get_student_classes(l_number)
-        return redirect(url_for('main.sign_in', l_number=l_number, **{'classes[]': classes}))
+        return redirect(url_for('main.sign_in', l_number=l_number, lab_id=lab_id, **{'classes[]': classes}))
 
     else:
         csrf_token = generate_csrf()
         form.csrf_token.data = csrf_token
-        lab_id = session.get('lab_id', None)
+        lab_id = request.args.get('lab_id', None)  # Get lab_id from query parameter
 
         return render_template('landing.html', form=form, lab_id=lab_id)
 
@@ -256,9 +267,25 @@ def query_selection():
     form = QuerySelectionForm()
     logout_form = LogoutForm()
 
+    term_dates = TermDates.query.all()
+
+    # Populate the term_date_range choices
+    form.term_date_range.choices = [(0, 'Select Term Date Range')] + [
+        (td.id, f"{td.term_name}: {td.start_date.strftime('%Y-%m-%d')} to {td.end_date.strftime('%Y-%m-%d')}")
+        for td in term_dates
+    ]
+
     if form.validate_on_submit():
-        start_date = form.start_date.data
-        end_date = form.end_date.data + timedelta(days=1)
+        # If a term date range was selected, use it to set the start and end dates
+        if form.term_date_range.data:
+            term_date = TermDates.query.get(form.term_date_range.data)
+            if term_date is not None:
+                start_date = term_date.start_date
+                end_date = term_date.end_date + timedelta(days=1)
+            else:
+                # If no term date range was selected, use the manually input dates
+                start_date = form.start_date.data
+                end_date = form.end_date.data + timedelta(days=1)
 
         # Fetch data from DB
         data = SignInData.query.filter(
@@ -285,14 +312,15 @@ def query_selection():
         session['csv_filename'] = csv_filename
 
         # Add the filename to the template context
-        return render_template('query_selection.html', form=form, logout_form=logout_form, data=data, csv_filename=csv_filename)
-    
+        return render_template('query_selection.html', form=form, logout_form=logout_form, data=data, term_dates=term_dates, csv_filename=csv_filename)
+
     else:
         if request.method == 'POST':
             flash('Form submission is invalid', 'error')
 
     # If it's a GET request or the POST request is processed, show the same query selection page without the download link
     return render_template('query_selection.html', form=form, logout_form=logout_form, csv_filename=None)
+
 
 @main_bp.route('/current_sign_ins/<int:lab_id>')
 def current_sign_ins(lab_id):
@@ -311,6 +339,19 @@ def current_sign_ins(lab_id):
     print(f'Checking sign-ins for lab ID: {lab_id}')  # Verbose comment
     print(f'Number of users currently signed in: {count}')  # Verbose comment
     return jsonify(count=count)
+
+
+@main_bp.route('/set_message/<int:lab_location_id>', methods=['GET', 'POST'])
+@login_required
+def set_message(lab_location_id):
+    form = MessageForm()
+    if form.validate_on_submit():
+        message = LabMessage(content=form.content.data, lab_location_id=lab_location_id, user_id=current_user.id)
+        db.session.add(message)
+        db.session.commit()
+        flash('Your message has been posted.', 'success')
+        return redirect(url_for('index'))
+    return render_template('set_message.html', form=form)
 
 
 @main_bp.route('/ip-management', methods=['GET', 'POST'])
@@ -371,20 +412,6 @@ def ip_management():
 
     return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form, logout_form=logout_form)
 
-@main_bp.route('/set-message', methods=['GET', 'POST'])
-@login_required
-def set_message():
-    if not current_user.can_set_message:
-        flash('You do not have permission to set a message.', 'error')
-        return redirect(url_for('main.landing'))
-
-    form = MessageForm()
-    if form.validate_on_submit():
-        # Logic to set the message for the lab
-        flash('Your message has been set.', 'success')
-        return redirect(url_for('main.landing'))
-
-    return render_template('set_message.html', form=form)
 
 def send_comment_to_support(l_number, comment):
     # Load configuration

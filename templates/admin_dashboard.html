@@ -20,22 +20,23 @@
             <p>Welcome, {{ current_user.username }}!</p>
         </div>
         <ul class="dashboard-menu">
-            {% if current_user.is_admin %}
+            {% if is_admin %}
             <!-- Only display this part to admin users -->
             <li><a href="{{ url_for('admin.user_management') }}">User Management</a></li>
             <li><a href="{{ url_for('main.ip_management') }}">IP Management</a></li>
-            <li><a href="{{ url_for('main.query_selection') }}">Query Selection</a></li>
-
-        {% else %}
+            <li><a href="{{ url_for('admin.term_dates_management') }}">Term Dates Management</a></li>
+        {% endif %}
             <!-- Displayed to non-admin users -->
             <li><a href="{{ url_for('main.query_selection') }}">Query Selection</a></li>
-        {% endif %}
+            <li><a href="{{ url_for('main.set_message') }}">Set Message</a></li>
             <!-- Add other admin links as needed -->
         </ul>
-        <form action="{{ url_for('auth.logout') }}" method="post">
-            {{ logout_form.hidden_tag() }}
-            <input type="submit" value="Logout">
-        </form>
+        <div class="button-container">
+            <form action="{{ url_for('auth.logout') }}" method="post">
+                {{ logout_form.hidden_tag() }}
+                <input type="submit" value="Logout">
+            </form>
+        </div>
     </div>
 </body>
 </html>

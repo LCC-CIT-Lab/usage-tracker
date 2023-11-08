@@ -1,7 +1,10 @@
 [encryption]
 VALID_EMAILS = "rosenauj@my.lanecc.edu"  # Add valid emails here
-DEFAULT_ADMIN_PASSWORD = "pass"
+DEFAULT_ADMIN_PASSWORD = "p"
+DEFAULT_ADMIN_USERNAME = "a"
+DEFAULT_ADMIN_EMAIL = "pass@a.edu"
 SECRET_KEY = "hashedkeyhashedkeyhashedkey"
+SESSION_COOKIE_SECURE = true
 
 [smtp]
 ACCOUNT = "myapp"

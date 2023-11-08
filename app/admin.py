@@ -1,12 +1,13 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
-from app.models import db, User, IPLocation
-from app.forms import LoginForm, LogoutForm, AddIPMappingForm, RemoveIPMappingForm
+from app.models import db, User, IPLocation, TermDates
+from app.forms import LoginForm, LogoutForm, AddIPMappingForm, TermDatesForm, RemoveIPMappingForm
 from .config import load_config
 
 import traceback
 
 admin_bp = Blueprint('admin', __name__)
+
 
 def create_admin(app):
     with app.app_context():
@@ -49,16 +50,18 @@ def create_admin(app):
             db.session.add(admin_user)
             db.session.commit()
 
+
 @admin_bp.route('/admin_dashboard', methods=['GET', 'POST'])
 @login_required
 def admin_dashboard():
     logout_form = LogoutForm()
-
-    if not current_user.is_admin:
-        flash('Access denied: You do not have admin privileges.', 'error')
-        return redirect(url_for('main.landing'))
-
-    return render_template('admin_dashboard.html', logout_form=logout_form)
+    if current_user.is_authenticated:
+        is_admin = current_user.is_admin
+        # Pass the is_admin variable to the template
+        return render_template('admin_dashboard.html', is_admin=is_admin, logout_form=logout_form)
+    else:
+        flash('Please log in to access this page.')
+        return redirect(url_for('auth.login'))
 
 @admin_bp.route('/user_management', methods=['GET', 'POST'])
 @login_required
@@ -111,6 +114,72 @@ def user_management():
     print(ip_locations)  # Add this line for debugging purposes
 
     return render_template('user_management.html', users=users, logout_form=logout_form, form=form, ip_locations=ip_locations)
+
+
+@admin_bp.route('/term_dates_management', methods=['GET', 'POST'])
+@login_required
+def term_dates_management():
+    if not current_user.is_admin:
+        flash('Access denied: You do not have the necessary permissions.')
+        return redirect(url_for('auth.login'))
+
+    form = TermDatesForm()
+    logout_form = LogoutForm()
+
+    if form.validate_on_submit():
+        start_date = form.start_date.data
+        end_date = form.end_date.data
+        term_name = determine_term_name(start_date)  # Use the function to determine the term name
+
+        new_term_dates = TermDates(
+            term_name=term_name,
+            start_date=start_date,
+            end_date=end_date
+        )
+        db.session.add(new_term_dates)
+        try:
+            db.session.commit()
+            flash('Term dates added successfully.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'An error occurred: {e}', 'error')
+
+    term_dates = TermDates.query.all()
+    return render_template('term_dates_management.html', form=form, term_dates=term_dates, logout_form=logout_form)
+
+
+def determine_term_name(start_date):
+    month = start_date.month
+    year = start_date.year
+    if month in range(1, 4):  # January to March
+        term_name = f'Winter {year}'
+    elif month in range(4, 7):  # April to June
+        term_name = f'Spring {year}'
+    elif month in range(7, 10):  # July to September
+        term_name = f'Summer {year}'
+    else:  # October to December
+        term_name = f'Fall {year}'
+    return term_name
+
+
+@admin_bp.route('/delete_term_date/<int:term_date_id>', methods=['POST'])
+@login_required
+def delete_term_date(term_date_id):
+    if not current_user.is_admin:
+        flash('Access denied: You do not have the necessary permissions.', 'error')
+        return redirect(url_for('auth.login'))
+
+    term_date = TermDates.query.get_or_404(term_date_id)
+    try:
+        db.session.delete(term_date)
+        db.session.commit()
+        flash('Term date deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'An error occurred: {e}', 'error')
+
+    return redirect(url_for('admin.term_dates_management'))
+
 
 @admin_bp.route('/update_user_permissions/<int:user_id>', methods=['POST'])
 @login_required

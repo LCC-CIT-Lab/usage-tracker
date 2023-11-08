@@ -10,7 +10,13 @@
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
-
+            {% for message in lab_location.messages %}
+                <div class="message">
+                    <p>{{ message.content }}</p>
+                    <small>Posted by {{ message.user.name }} on {{ message.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                </div>
+            {% endfor %}
+            <br><br>
             {% with messages = get_flashed_messages() %}
                 {% if messages %}
                     <div class="alert">
@@ -38,29 +44,29 @@
             <br>
             <span id="sign-in-count" data-lab-id="{{ lab_id }}">Loading...</span>
             <script>
-            $(document).ready(function() {
-                function updateSignedInCount() {
-                    // Use the data attribute to store and access the lab ID
-                    var labId = $('#sign-in-count').data('lab-id');
-                    if (labId) {
-                        $.ajax({
-                            url: '/current_sign_ins/' + labId,
-                            type: 'GET',
-                            dataType: 'json',
-                            success: function(response) {
-                                $('#sign-in-count').text(response.count + ' users signed in');
-                            },
-                            error: function() {
-                                $('#sign-in-count').text('Not available');
-                            }
-                        });
-                    } else {
-                        $('#sign-in-count').text('Not available');
+                $(document).ready(function() {
+                    function updateSignedInCount() {
+                        var labId = $('#sign-in-count').data('labId'); // Correct the case to match the data attribute
+                        if (labId) {  // Check if labId is not null or undefined
+                            $.ajax({
+                                url: '/current_sign_ins/' + labId,
+                                type: 'GET',
+                                dataType: 'json',
+                                success: function(response) {
+                                    $('#sign-in-count').text(response.count + ' users signed in');
+                                },
+                                error: function() {
+                                    $('#sign-in-count').text('0 users signed in');
+                                }
+                            });
+                        } else {
+                            console.error('Invalid lab ID');
+                            $('#sign-in-count').text('Invalid lab ID');
+                        }
                     }
-                }
-                // Call the update function every 5 seconds
-                setInterval(updateSignedInCount, 5000);
-            });
+                    setInterval(updateSignedInCount, 1000);
+                });
+
             </script>
         </div>
     </div>
