@@ -1,9 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
-from app.models import db, User, IPLocation, TermDates
+from app.main import get_lab_info
+from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler
 from app.forms import LoginForm, LogoutForm, AddIPMappingForm, TermDatesForm, RemoveIPMappingForm
 from .config import load_config
 
+import logging
 import traceback
 
 admin_bp = Blueprint('admin', __name__)
@@ -55,12 +57,16 @@ def create_admin(app):
 @login_required
 def admin_dashboard():
     logout_form = LogoutForm()
+
+    lab_info = get_lab_info(request.remote_addr)
+    lab_location_name, lab_location_id = lab_info  # Unpack the tuple
+
     if current_user.is_authenticated:
-        is_admin = current_user.is_admin
-        # Pass the is_admin variable to the template
-        return render_template('admin_dashboard.html', is_admin=is_admin, logout_form=logout_form)
+        # Pass the is_admin variable and the IPLocation instance to the template
+        return render_template('admin_dashboard.html', is_admin=current_user.is_admin, logout_form=logout_form,
+                           lab_location_id=lab_location_id)
     else:
-        flash('Please log in to access this page.')
+        flash('Please log in with an admin account to access this page.', 'error')
         return redirect(url_for('auth.login'))
 
 @admin_bp.route('/user_management', methods=['GET', 'POST'])
@@ -226,3 +232,35 @@ def delete_user(user_id):
         flash(f'An error occurred while deleting the user: {e}', 'error')
 
     return redirect(url_for('admin.user_management'))
+
+
+@admin_bp.route('/logs')
+@login_required
+def view_logs():
+    if not current_user.is_admin:
+        flash('You do not have permission to view the logs.', 'error')
+        return redirect(url_for('admin.admin_dashboard'))
+
+    logs = LogEntry.query.order_by(LogEntry.timestamp.desc()).limit(100).all()  # Fetch the latest 100 logs
+    return render_template('view_logs.html', logs=logs)
+
+def delete_old_logs():
+    threshold_date = datetime.utcnow() - timedelta(days=14)
+    LogEntry.query.filter(LogEntry.timestamp <= threshold_date).delete()
+    db.session.commit()
+
+# Example of how to schedule delete_old_logs function
+# This would be part of your application setup, not directly in your route file
+from apscheduler.schedulers.background import BackgroundScheduler
+
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=delete_old_logs, trigger="interval", days=1)
+    scheduler.start()
+
+# Call start_scheduler() when your application starts
+
+def setup_logging(app):
+    log_handler = DatabaseLogHandler()
+    log_handler.setLevel(logging.INFO)  # Set the log level you want to capture
+    app.logger.addHandler(log_handler)

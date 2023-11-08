@@ -3,9 +3,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from app.auth import auth_bp
-from app.admin import admin_bp, create_admin
+from app.admin import admin_bp, create_admin, start_scheduler, setup_logging
 from app.main import main_bp
-from app.models import db
+from app.models import db, DatabaseLogHandler
 from .config import load_config
 
 import os
@@ -21,6 +21,7 @@ has_run = False
 # Initialize extensions
 login_manager = LoginManager()
 migrate = Migrate()
+start_scheduler()
 
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
@@ -46,6 +47,8 @@ def create_app():
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
+    setup_logging(app)
+
 
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')

@@ -5,9 +5,10 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature
 from datetime import datetime, timedelta, date
 from email.mime.text import MIMEText
 from io import StringIO
-from app.models import db, SignInData, IPLocation, TermDates
+from app.models import db, SignInData, IPLocation, TermDates, LabMessage
 from app.forms import MessageForm, LandingForm, LogoutForm, SignInForm, SignOutForm, LoginForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, CSRFProtectForm
 from .config import load_config
+from bleach import clean
 
 import csv
 import subprocess
@@ -33,14 +34,29 @@ def validate_csrf_token(token, secret_key, max_age=3600):
 def landing():
     form = LandingForm()
 
-    lab_id = request.args.get('lab_id', None)  # Get lab_id from query parameter
-    if lab_id is not None:
+    lab_location = None
+    lab_id = request.args.get('lab_id')
+    print(f'Received lab_id from query parameters: {lab_id}')
+
+    # If lab_id is not in the query parameters, then get it from the IP address
+    if not lab_id:
+        print(f'No lab_id in query parameters. Attempting to retrieve lab_id based on IP address: {request.remote_addr}')
+        lab_info = get_lab_info(request.remote_addr)
+        print(f'Lab info based on IP: {lab_info}')
+        lab_id = lab_info[1]
+
+    # If the lab_id was determined from IP or query parameter, validate it
+    if lab_id:
         try:
-            lab_id = int(lab_id)  # Make sure that lab_id is an integer
-            session['lab_id'] = lab_id  # Store lab_id in session
+            lab_id = int(lab_id)
+            print(f'Attempting to retrieve lab_location with lab_id: {lab_id}')
+            lab_location = IPLocation.query.get(lab_id)
+            if not lab_location:
+                print('Lab location not found for lab_id:', lab_id)
         except ValueError:
+            print(f'ValueError - Invalid lab ID: {lab_id}')
             flash('Invalid lab ID', 'error')
-            lab_id = None
+            lab_id = None  # Reset lab_id if it's not a valid integer
 
     if form.validate_on_submit():
         l_number = form.l_number.data.upper()  # Convert to upper case to handle case-insensitivity
@@ -60,14 +76,15 @@ def landing():
             return handle_existing_sign_in(l_number)  # Use the handle_existing_sign_in function
 
         classes = get_student_classes(l_number)
-        return redirect(url_for('main.sign_in', l_number=l_number, lab_id=lab_id, **{'classes[]': classes}))
+        return redirect(url_for('main.sign_in', l_number=l_number, lab_location=lab_location, lab_id=lab_id, **{'classes[]': classes}))
 
     else:
         csrf_token = generate_csrf()
         form.csrf_token.data = csrf_token
-        lab_id = request.args.get('lab_id', None)  # Get lab_id from query parameter
 
-        return render_template('landing.html', form=form, lab_id=lab_id)
+        print(f'Rendering template with lab_location: {lab_location} and lab_id: {lab_id}')
+        return render_template('landing.html', lab_location=lab_location, form=form, lab_id=lab_id)
+
 
 @main_bp.route('/sign-in', methods=['GET', 'POST'])
 def sign_in():
@@ -93,6 +110,7 @@ def sign_in():
         try:
             process_sign_in(l_number, lab_location_name, form.class_selected.data, lab_id)
             flash('Signed in successfully')
+            current_app.logger.info(f'User signed in')
             return redirect(url_for('main.landing', lab_id=lab_id))
         except Exception as e:
             return handle_sign_in_error(e)
@@ -125,13 +143,13 @@ def checkout():
             try:
                 db.session.commit()
                 session.pop('l_number', None)
-
+                current_app.logger.info(f'User signed out')
                 flash('You have been signed out successfully.', 'success')
             except Exception as e:
                 db.session.rollback()
                 flash(f'An error occurred while signing out: {e}', 'error')
                 print(f'Error signing out: {e}')
-
+    
         # After handling the sign-out, redirect to the landing page
         return redirect(url_for('main.landing'))
     else:
@@ -200,7 +218,8 @@ def handle_existing_sign_in(l_number):
     student_today = get_student_today(l_number)
     student_today.sign_out_timestamp = datetime.now()
     db.session.commit()
-    flash('You are already signed in today. Signing out.')
+    current_app.logger.info(f'User signed out')
+    flash('Signed out.')
     return redirect(url_for('main.checkout', l_number=l_number))
 
 def handle_sign_in_error(e):
@@ -322,36 +341,72 @@ def query_selection():
     return render_template('query_selection.html', form=form, logout_form=logout_form, csv_filename=None)
 
 
-@main_bp.route('/current_sign_ins/<int:lab_id>')
+@main_bp.route('/current_sign_ins/<lab_id>')
 def current_sign_ins(lab_id):
-    sign_ins = SignInData.query.join(
-        IPLocation, SignInData.ip_location_id == IPLocation.id
-    ).filter(
-        IPLocation.id == lab_id
-    ).all()
+    if lab_id != 'None' and lab_id.isdigit():
+        lab_id = int(lab_id)
+        print("Lab ID:", lab_id)  # Debug print statement
 
-    # Print all records before filtering for sign_out_timestamp and date
-    for sign_in in sign_ins:
-        print(sign_in.l_number, sign_in.lab_location, sign_in.ip_location_id, sign_in.sign_in_timestamp, sign_in.sign_out_timestamp)
+        sign_ins = SignInData.query.join(
+            IPLocation, SignInData.ip_location_id == IPLocation.id
+        ).filter(IPLocation.id == lab_id).all()
 
-    count = len([sign_in for sign_in in sign_ins if sign_in.sign_out_timestamp is None and sign_in.sign_in_timestamp.date() == datetime.now().date()])
-    
-    print(f'Checking sign-ins for lab ID: {lab_id}')  # Verbose comment
-    print(f'Number of users currently signed in: {count}')  # Verbose comment
-    return jsonify(count=count)
+        # Print all records before filtering for sign_out_timestamp and date
+        for sign_in in sign_ins:
+            print(sign_in.l_number, sign_in.lab_location, sign_in.ip_location_id, sign_in.sign_in_timestamp, sign_in.sign_out_timestamp)
+
+        count = len([sign_in for sign_in in sign_ins if sign_in.sign_out_timestamp is None and sign_in.sign_in_timestamp.date() == datetime.now().date()])
+        
+        print(f'Checking sign-ins for lab ID: {lab_id}')  # Verbose comment
+        print(f'Number of users currently signed in: {count}')  # Verbose comment
+        return jsonify(count=count)
+    else:
+        return jsonify({'error': 'Invalid lab ID'}), 404
 
 
 @main_bp.route('/set_message/<int:lab_location_id>', methods=['GET', 'POST'])
 @login_required
 def set_message(lab_location_id):
     form = MessageForm()
+    logout_form = LogoutForm()
+    # Query for the existing messages for this lab location
+    existing_messages = LabMessage.query.filter_by(lab_location_id=lab_location_id).all()
+
     if form.validate_on_submit():
-        message = LabMessage(content=form.content.data, lab_location_id=lab_location_id, user_id=current_user.id)
+        # Define the tags and attributes that you want to allow
+        allowed_tags = ['a', 'img', 'p', 'br', 'strong', 'em', 'ul', 'li', 'ol']
+        allowed_attrs = {
+            'a': ['href', 'title', 'target', 'rel'],  # 'target' and 'rel' attributes are useful for links
+            'img': ['src', 'alt', 'width', 'height'],  # You can also allow width and height if needed
+        }
+
+        # Sanitize the HTML content
+        cleaned_content = clean(form.content.data, tags=allowed_tags, attributes=allowed_attrs)
+
+        # Now you can save cleaned_content to the database
+        message = LabMessage(content=cleaned_content, lab_location_id=lab_location_id, user_id=current_user.id)
         db.session.add(message)
         db.session.commit()
         flash('Your message has been posted.', 'success')
-        return redirect(url_for('index'))
-    return render_template('set_message.html', form=form)
+        return redirect(url_for('admin.admin_dashboard'))  # Redirect to the index or another appropriate page
+    else:
+        # If it's a GET request or form validation fails, render the set_message.html template
+        return render_template('set_message.html', form=form, existing_messages=existing_messages, logout_form = logout_form, lab_location_id=lab_location_id)
+
+
+@main_bp.route('/delete_message/<int:message_id>', methods=['POST'])
+@login_required
+def delete_message(message_id):
+    # Query for the message to delete
+    message = LabMessage.query.get_or_404(message_id)
+    # Ensure the current user has permission to delete the message
+    if message.user_id == current_user.id or current_user.is_admin:
+        db.session.delete(message)
+        db.session.commit()
+        flash('Message deleted successfully.', 'success')
+    else:
+        flash('You do not have permission to delete this message.', 'error')
+    return redirect(url_for('main.set_message', lab_location_id=message.lab_location_id))
 
 
 @main_bp.route('/ip-management', methods=['GET', 'POST'])

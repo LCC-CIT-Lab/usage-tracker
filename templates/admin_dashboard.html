@@ -25,11 +25,17 @@
             <li><a href="{{ url_for('admin.user_management') }}">User Management</a></li>
             <li><a href="{{ url_for('main.ip_management') }}">IP Management</a></li>
             <li><a href="{{ url_for('admin.term_dates_management') }}">Term Dates Management</a></li>
-        {% endif %}
+            <li><a href="{{ url_for('admin.view_logs') }}">View Logs</a></li> <!-- Add this line for log viewing -->
+            {% endif %}
             <!-- Displayed to non-admin users -->
             <li><a href="{{ url_for('main.query_selection') }}">Query Selection</a></li>
-            <li><a href="{{ url_for('main.set_message') }}">Set Message</a></li>
-            <!-- Add other admin links as needed -->
+            <li>
+                {% if lab_location_id %}
+                <a href="{{ url_for('main.set_message', lab_location_id=lab_location_id) }}">Set Message</a>
+                {% else %}
+                <span>Set Message (Unavailable)</span>
+                {% endif %}
+            </li>
         </ul>
         <div class="button-container">
             <form action="{{ url_for('auth.logout') }}" method="post">

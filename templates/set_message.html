@@ -17,17 +17,16 @@
         {% endif %}
         {% endwith %}
 
-        <!-- Add IP Mapping Form -->
+        <!-- Add Set Message Form -->
         <div class="dashboard-header">
-            <h2>IP Management</h2>
+            <h2>Set Landing Message</h2>
             <div class="add-ip-form">
-                <h3>Add IP Mapping</h3>
+                <h3>Add Landing Message</h3>
             <!-- set_message.html -->
                 <form method="post">
                     {{ form.hidden_tag() }}
                     <div>
-                        {{ form.content.label }}
-                        {{ form.content(rows=4) }}
+                        {{ form.content(rows=4, title="Allowed HTML tags: a, img, p, br, strong, em, ul, li, ol. For links, use 'href', 'title', 'target', 'rel'. For images, use 'src', 'alt', 'width', 'height'.") }}
                         {% for error in form.content.errors %}
                             <span style="color: red;">[{{ error }}]</span>
                         {% endfor %}
@@ -36,7 +35,19 @@
                         {{ form.submit() }}
                     </div>
                 </form>
-
+                <br><br>
+                <!-- Display existing messages -->
+                {% for message in existing_messages %}
+                <div class="existing-message">
+                    <p>{{ message.content }}</p>
+                    <!-- Delete button form for each message -->
+                    <form action="{{ url_for('main.delete_message', message_id=message.id) }}" method="post">
+                        {{ form.hidden_tag() }}
+                        <input type="submit" value="Delete">
+                    </form>
+                </div>
+                {% endfor %}
+                <br><br>
                 <div class="button-container">
                     <!-- Logout Form -->
                     <form action="{{ url_for('auth.logout') }}" method="post">

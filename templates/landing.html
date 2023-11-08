@@ -10,13 +10,17 @@
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
-            {% for message in lab_location.messages %}
-                <div class="message">
-                    <p>{{ message.content }}</p>
-                    <small>Posted by {{ message.user.name }} on {{ message.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small>
-                </div>
-            {% endfor %}
+
+            {% if lab_location %}
+                {% for message in lab_location.messages %}
+                    <div class="lab-message">
+                        {{ message.content|safe }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
             <br><br>
+
             {% with messages = get_flashed_messages() %}
                 {% if messages %}
                     <div class="alert">
@@ -46,8 +50,8 @@
             <script>
                 $(document).ready(function() {
                     function updateSignedInCount() {
-                        var labId = $('#sign-in-count').data('labId'); // Correct the case to match the data attribute
-                        if (labId) {  // Check if labId is not null or undefined
+                        var labId = $('#sign-in-count').data('lab-id'); // Correct the case to match the data attribute
+                        if (labId && labId !== 'None') {  // Check if labId is not null, undefined, or 'None'
                             $.ajax({
                                 url: '/current_sign_ins/' + labId,
                                 type: 'GET',
@@ -56,7 +60,7 @@
                                     $('#sign-in-count').text(response.count + ' users signed in');
                                 },
                                 error: function() {
-                                    $('#sign-in-count').text('0 users signed in');
+                                    $('#sign-in-count').text('Error getting users');
                                 }
                             });
                         } else {

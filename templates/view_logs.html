@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>View Logs</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <h1>Logs</h1>
+            <p>Recent activity logs for system administrators.</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Date/Time</th>
+                    <th>User</th>
+                    <th>Level</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.timestamp }}</td>
+                    <td>{{ log.user.username if log.user else 'System' }}</td>
+                    <td>{{ log.level }}</td>
+                    <td>{{ log.message }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">No logs to display.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="button-container">
+            <a href="{{ url_for('admin.admin_dashboard') }}">Back to Dashboard</a>
+        </div>
+    </div>
+</body>
+</html>
