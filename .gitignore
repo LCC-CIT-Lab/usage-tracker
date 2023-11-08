@@ -168,3 +168,4 @@ attendance_data*
 logging
 toml
 migrations/*
+attendance.db
