@@ -1,5 +1,4 @@
 [encryption]
-VALID_EMAILS = "rosenauj@my.lanecc.edu"  # Add valid emails here
 DEFAULT_ADMIN_PASSWORD = "p"
 DEFAULT_ADMIN_USERNAME = "a"
 DEFAULT_ADMIN_EMAIL = "pass@a.edu"
@@ -14,3 +13,8 @@ SUPPORT_EMAIL = "rosenauj@my.lanecc.edu"
 SQLALCHEMY_DATABASE_URI = "sqlite:///attendance.db"
 DEBUG = true
 
+[sshfs]
+REMOTE_TSV_PATH = "/data"
+HOST = "nlms.lanecc.edu"
+USER = "app"
+PRIVATE_KEY_PATH = "app_keys/id_rsa"

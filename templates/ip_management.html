@@ -36,16 +36,19 @@
                 <p>{{ add_ip_form.submit() }}</p>
             </form>
         </div>
-        <div class="remove-ip-form">
-            <h3>Remove IP Mapping</h3>
-            <form method="post" action="{{ url_for('main.ip_management') }}">
+
+<ul class="ip-list">
+    {% for ip_mapping in ip_mappings %}
+    <li>
+        <span>{{ ip_mapping.ip_address }} - {{ ip_mapping.location_name }}</span>
+        <form method="post" action="{{ url_for('admin.remove_ip_mapping', ip_id=ip_mapping.id) }}">
                 {{ remove_ip_form.hidden_tag() }}
-                <p>
-                    {{ remove_ip_form.remove_location_name.label }}<br>
-                    {{ remove_ip_form.remove_location_name(size=32) }}
-                </p>
-                <p>{{ remove_ip_form.remove_submit() }}</p>
-            </form>
+            <input type="hidden" name="ip_id" value="{{ ip_mapping.id }}">
+            <button type="submit">Delete</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
         </div>
         <br><br><br>
         <div class="button-container">
@@ -55,7 +58,7 @@
             <div>
                 <form action="{{ url_for('auth.logout') }}" method="post">
                     {{ logout_form.hidden_tag() }}
-                    <button type="submit" class="button">Logout</button>
+                    <button type="submit" class="buttonsignout">Logout</button>
                 </form>
             </div>
         </div>

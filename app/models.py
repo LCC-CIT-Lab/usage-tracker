@@ -46,7 +46,6 @@ class IPLocation(db.Model):
     ip_address = db.Column(db.String(45))
     location_name = db.Column(db.String(100))
     sign_ins = db.relationship('SignInData', backref='ip_location', lazy='dynamic')
-
     def __repr__(self):
         return f'<IPLocation {self.ip_address} - {self.location_name}>'
 
@@ -63,12 +62,11 @@ class TermDates(db.Model):
 class LabMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.String(255), nullable=False)
-    lab_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'), nullable=False)  # Corrected this line
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-    lab_location = db.relationship('IPLocation', backref=db.backref('messages', lazy=True))  # Corrected this line
     user = db.relationship('User', backref=db.backref('messages', lazy=True))
+    lab_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
+    lab_location = db.relationship('IPLocation', backref=db.backref('lab_messages', cascade='all, delete-orphan'))
 
 
 class LogEntry(db.Model):

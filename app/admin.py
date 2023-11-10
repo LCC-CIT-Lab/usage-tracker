@@ -1,13 +1,16 @@
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required, current_user
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.main import get_lab_info
-from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage
-from app.forms import LoginForm, LogoutForm, AddIPMappingForm, TermDatesForm, RemoveIPMappingForm
+from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage, SignInData
+from app.forms import LoginForm, LogoutForm, AddIPMappingForm, TermDatesForm
 from .config import load_config
 
 import logging
 import traceback
+import datetime
+
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -16,7 +19,7 @@ def create_admin(app):
     with app.app_context():
         # Load the configuration
         config = current_app.config
-        
+
         ip_mapping_form = AddIPMappingForm()
 
         if request.method == 'POST':
@@ -65,10 +68,11 @@ def admin_dashboard():
     if current_user.is_authenticated:
         # Pass the is_admin variable and the IPLocation instance to the template
         return render_template('admin_dashboard.html', is_admin=current_user.is_admin, logout_form=logout_form,
-                           lab_location_id=lab_location_id)
+                               lab_location_id=lab_location_id)
     else:
         flash('Please log in with an admin account to access this page.', 'error')
         return redirect(url_for('auth.login'))
+
 
 @admin_bp.route('/user_management', methods=['GET', 'POST'])
 @login_required
@@ -79,7 +83,7 @@ def user_management():
     current_app.logger.debug('Users List: %s', users)
 
     ip_locations = IPLocation.query.all()
-    
+
     if not current_user.is_admin:
         flash('Access denied: You do not have the necessary permissions.')
         return redirect(url_for('auth.login'))
@@ -122,7 +126,8 @@ def user_management():
                     current_app.logger.error(traceback_str)  # This will log the full traceback.
                     flash(f'An error occurred while creating the user: {e}', 'error')
 
-    return render_template('user_management.html', users=users, logout_form=logout_form, form=form, ip_locations=ip_locations)
+    return render_template('user_management.html', users=users, logout_form=logout_form, form=form,
+                           ip_locations=ip_locations)
 
 
 @admin_bp.route('/term_dates_management', methods=['GET', 'POST'])
@@ -189,7 +194,7 @@ def delete_term_date(term_date_id):
 
     return redirect(url_for('admin.term_dates_management'))
 
-    
+
 @admin_bp.route('/update_user_ip_mapping/<int:user_id>', methods=['POST'])
 @login_required
 def update_user_ip_mapping(user_id):
@@ -312,7 +317,7 @@ def remove_user(user_id):
         db.session.rollback()
         current_app.logger.error(f"Error removing user with ID {user_id}: {e}", exc_info=True)
         flash(f'Error removing user: {e}', 'error')
-    
+
     return redirect(url_for('admin.user_management'))
 
 
@@ -330,14 +335,14 @@ def view_logs():
 
 
 def delete_old_logs():
-    threshold_date = datetime.utcnow() - timedelta(days=14)
+    threshold_date = datetime.utcnow() - datetime.timedelta(days=14)
     LogEntry.query.filter(LogEntry.timestamp <= threshold_date).delete()
     db.session.commit()
 
 
 def sign_out_previous_day_students():
     """Sign out students who signed in the previous day and haven't signed out yet."""
-    yesterday = (datetime.now() - timedelta(days=1)).date()
+    yesterday = (datetime.now() - datetime.timedelta(days=1)).date()
     sign_out_time = datetime.combine(yesterday, datetime.strptime('16:30', '%H:%M').time())
 
     students_signed_in_yesterday = SignInData.query.filter(
@@ -359,11 +364,13 @@ def sign_out_task():
         sign_out_previous_day_students()
         delete_old_logs()
 
+
 def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=delete_old_logs, trigger="cron", hour=1, minute=0)
     scheduler.add_job(func=sign_out_task, trigger='cron', hour=1, minute=0)
     scheduler.start()
+
 
 # Call start_scheduler() when your application starts
 
@@ -371,3 +378,28 @@ def setup_logging(app):
     log_handler = DatabaseLogHandler()
     log_handler.setLevel(logging.INFO)  # Set the log level you want to capture
     app.logger.addHandler(log_handler)
+
+
+@admin_bp.route('/remove_ip_mapping/<int:ip_id>', methods=['POST'])
+@login_required
+def remove_ip_mapping(ip_id):
+    if not current_user.is_admin:
+        flash('Access denied: You do not have the necessary permissions.', 'error')
+        return redirect(url_for('auth.login'))
+
+    ip_mapping = IPLocation.query.get_or_404(ip_id)
+    # Make sure to handle associated messages if any
+    messages = LabMessage.query.filter_by(lab_location_id=ip_id).all()
+    for message in messages:
+        db.session.delete(message)
+    try:
+        db.session.delete(ip_mapping)
+        db.session.commit()
+        flash('IP mapping removed successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'An error occurred while removing the IP mapping: {e}', 'error')
+
+    return redirect(url_for('main.ip_management'))
+
+

@@ -29,13 +29,13 @@
                 {% endif %}
             {% endwith %}
 
-            <div class="dashboard-header"><h3>{{ lab_location_name }} Sign-In</h3></div>
+            <div class="dashboard-header-signin"><h3>{{ lab_location_name }} Sign-In</h3></div>
 
             <form method="post" action="{{ url_for('main.landing') }}">
                 {{ form.hidden_tag() }}
                 <div>
                     <br>
-                    L-{{ form.l_number(size=32, placeholder="00000000") }}
+                    L-{{ form.l_number(size=6, placeholder="00000000") }}
                     {% if form.l_number.errors %}
                         <div class="error">{{ form.l_number.errors[0] }}</div>
                     {% endif %}

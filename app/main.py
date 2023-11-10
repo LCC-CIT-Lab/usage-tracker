@@ -9,12 +9,21 @@ from app.models import db, SignInData, IPLocation, TermDates, LabMessage
 from app.forms import MessageForm, LandingForm, LogoutForm, SignInForm, SignOutForm, LoginForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, CSRFProtectForm
 from .config import load_config
 from bleach import clean
+from fs.sshfs import SSHFS
+from paramiko import util
 
 import csv
 import subprocess
 import os
+import logging
+import fs
 
 main_bp = Blueprint('main', __name__)
+
+config = load_config()
+
+# Configure the logging level for Paramiko to DEBUG
+util.log_to_file('/tmp/paramiko.log', level=5)
 
 
 def generate_csrf_token(secret_key):
@@ -30,6 +39,7 @@ def validate_csrf_token(token, secret_key, max_age=3600):
     except BadSignature:
         return False
 
+
 @main_bp.route('/', methods=['GET', 'POST'])
 def landing():
     form = LandingForm()
@@ -39,32 +49,34 @@ def landing():
     print(f'Received lab_id from query parameters: {lab_id}')
     lab_location_name = get_lab_name(request.remote_addr)
 
-    # If lab_id is not in the query parameters, then get it from the IP address
-    if not lab_id:
-        print(f'No lab_id in query parameters. Attempting to retrieve lab_id based on IP address: {request.remote_addr}')
-        lab_info = get_lab_info(request.remote_addr)
-        print(f'Lab info based on IP: {lab_info}')
-        lab_id = lab_info[1]
+    # Attempt to get lab info either from query parameters or IP address
+    lab_info = get_lab_info(request.remote_addr) if not lab_id else (lab_location_name, lab_id)
+    print(f'Lab info: {lab_info}')
+    lab_id = lab_info[1] if lab_info else None
 
-    # If the lab_id was determined from IP or query parameter, validate it
     if lab_id:
         try:
             lab_id = int(lab_id)
-            print(f'Attempting to retrieve lab_location with lab_id: {lab_id}')
             lab_location = IPLocation.query.get(lab_id)
             if not lab_location:
                 print('Lab location not found for lab_id:', lab_id)
+                lab_location_name = "Unknown Location"
         except ValueError:
             print(f'ValueError - Invalid lab ID: {lab_id}')
             flash('Invalid lab ID', 'error')
-            lab_id = None  # Reset lab_id if it's not a valid integer
+            lab_id = None
+
+    # Retrieve the latest lab message for the lab location
+    message = None
+    if lab_location:
+        message = LabMessage.query.filter_by(lab_location_id=lab_location.id).order_by(LabMessage.timestamp.desc()).first()
 
     if form.validate_on_submit():
         l_number = form.l_number.data.upper()  # Convert to upper case to handle case-insensitivity
         # Prepend 'L' if it's not already there
         if not l_number.startswith('L'):
             l_number = f'L{l_number}'
-        
+
         session['l_number'] = l_number  # Store the correctly formatted L number in the session
 
         if not student_exists(l_number):  # Use the student_exists function
@@ -75,7 +87,8 @@ def landing():
             return handle_existing_sign_in(l_number)  # Use the handle_existing_sign_in function
 
         classes = get_student_classes(l_number)
-        return redirect(url_for('main.sign_in', l_number=l_number, lab_location=lab_location, lab_id=lab_id, **{'classes[]': classes}))
+        return redirect(url_for('main.sign_in', l_number=l_number, lab_location=lab_location, lab_id=lab_id,
+                                **{'classes[]': classes}))
 
     else:
         csrf_token = generate_csrf()
@@ -162,14 +175,29 @@ def checkout():
         flash('No L number provided for sign-out.', 'error')
         return redirect(url_for('main.landing'))
 
+
 def student_exists(l_number):
     """Check if the student exists in the TSV file."""
-    with open('students.tsv', 'r') as file:
-        reader = csv.reader(file, delimiter='\t')
-        for row in reader:
-            if l_number == row[0]:
-                return True
-    return False
+    try:
+        with SSHFS(
+            host=config['sshfs']['HOST'],
+            user=config['sshfs']['USER'],
+            pkey=config['sshfs']['PRIVATE_KEY_PATH']
+        ) as sshfs:
+            tsv_file_path = '/path/to/zsrslst_cit.tsv'  # The path on the server
+            if not sshfs.exists(tsv_file_path):
+                print(f"File not found: {tsv_file_path}")
+                return False
+
+            with sshfs.open(tsv_file_path, 'r') as file:
+                reader = csv.reader(file, delimiter='\t')
+                for row in reader:
+                    if l_number == row[0]:
+                        return True
+        return False
+    except Exception as e:
+        print(f"An error occurred while accessing the SSHFS: {e}")
+        return False
 
 
 def get_student_today(l_number):
@@ -178,6 +206,7 @@ def get_student_today(l_number):
     student_entries_today = SignInData.query.filter_by(l_number=l_number).all()
     return next((entry for entry in sorted(student_entries_today, key=lambda x: x.sign_in_timestamp, reverse=True)
                  if entry.sign_in_timestamp.date() == today and not entry.sign_out_timestamp), None)
+
 
 def get_lab_info(ip_address):
     """Retrieve lab location and ID based on the user's IP address."""
@@ -230,34 +259,43 @@ def redirect_with_flash(message, category, endpoint):
     flash(message, category)
     return redirect(url_for(endpoint))
 
+
 def get_student_classes(l_number):
     """Retrieve the classes a student is enrolled in using the TSV files."""
     class_ids = []
 
-    try:
-        with open('studentsinclasses.tsv', 'r') as file:
-            reader = csv.reader(file, delimiter='\t')
-            for row in reader:
-                if l_number == row[0]:  # Check if L number matches
-                    class_ids.append(row[1])  # Add class ID
-    except FileNotFoundError:
-            # Handle the error, perhaps by sending a flash message or rendering a custom error page
-            flash('Studentsinclasses file not found.', 'error')
-            return redirect(url_for('main.landing'))  # Redirect to landing or an error page
+    # Establish a connection to the remote server
+    with SSHFS(
+            host=config['sshfs']['HOST'],
+            user=config['sshfs']['USER'],
+            pkey=config['sshfs']['PRIVATE_KEY_PATH']
+            # Include other parameters as needed
+    ) as sshfs:
 
-    classes = []
+        # Attempt to open zsrsinf_cit.txt and read class IDs
+        try:
+            with sshfs.open('zsrsinf_cit.txt', 'r') as file:
+                reader = csv.reader(file, delimiter='\t')
+                for row in reader:
+                    if l_number == row[0]:  # Check if L number matches
+                        class_ids.append(row[1])  # Add class ID
+        except FileNotFoundError:
+            flash('zsrsinf_cit file not found.', 'error')
+            return []
 
-    try:
-        with open('classes.tsv', 'r') as file:
-            reader = csv.reader(file, delimiter='\t')
-            for row in reader:
-                if row[1] in class_ids:  # Check if class ID matches
-                    class_name = row[2] + " " + row[3] + ": " + row[4]
-                    classes.append(class_name)
-    except FileNotFoundError:
-            # Handle the error, perhaps by sending a flash message or rendering a custom error page
+        classes = []
+
+        # Now open zsrsecl_cit.txt and match class IDs to names
+        try:
+            with sshfs.open('zsrsecl_cit.txt', 'r') as file:
+                reader = csv.reader(file, delimiter='\t')
+                for row in reader:
+                    if row[0] in class_ids:  # Check if class ID matches
+                        class_name = f"{row[1]} {row[2]}: {row[3]}"
+                        classes.append(class_name)
+        except FileNotFoundError:
             flash('Classes file not found.', 'error')
-            return redirect(url_for('main.landing'))  # Redirect to landing or an error page
+            return []
 
     return list(set(classes))
 
@@ -363,6 +401,11 @@ def current_sign_ins(lab_id):
 @main_bp.route('/set_message/<int:lab_location_id>', methods=['GET', 'POST'])
 @login_required
 def set_message(lab_location_id):
+    # Check if the user has permission to set messages
+    if not current_user.can_set_message:
+        flash('You do not have permission to set messages.', 'error')
+        return redirect(url_for('admin.admin_dashboard'))  # Redirect them to the landing page or another error page.
+
     form = MessageForm()
     logout_form = LogoutForm()
     # Query for the existing messages for this lab location
@@ -461,15 +504,11 @@ def ip_management():
             else:
                 flash('Location name not found.', 'error')
 
-    return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form, logout_form=logout_form)
+    return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form,
+                           logout_form=logout_form, ip_mappings=IPLocation.query.all())
 
 
 def send_comment_to_support(l_number, comment):
-    # Load configuration
-    config = load_config()
-    print(config)  # Add this line to debug the config loading
-    config.update(config)
-
     try:
         # Email details
         email = config['smtp']['SUPPORT_EMAIL']  # The email address that will receive the comment
