@@ -9,57 +9,57 @@
     <div class="dashboard-container">
         <div class="dashboard-header">
             <h2>Term Dates Management</h2>
-        </div>
-        <form action="{{ url_for('admin.term_dates_management') }}" method="post">
-            {{ form.hidden_tag() }}
-            <div class="form-group">
-                {{ form.start_date.label }}
-                {{ form.start_date }}
-                {% if form.start_date.errors %}
-                    <span class="error">{{ form.start_date.errors[0] }}</span>
-                {% endif %}
-                {{ form.end_date.label }}
-                {{ form.end_date }}
-                {% if form.end_date.errors %}
-                    <span class="error">{{ form.end_date.errors[0] }}</span>
-                {% endif %}
-            </div>
-            <!-- Use 'onclick' event for the confirmation prompt -->
-            <p><input type="submit" value="Submit"></p>
-        </form>
+            <form action="{{ url_for('admin.term_dates_management') }}" method="post">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    {{ form.start_date.label }}
+                    {{ form.start_date }}
+                    {% if form.start_date.errors %}
+                        <span class="error">{{ form.start_date.errors[0] }}</span>
+                    {% endif %}
+                    {{ form.end_date.label }}
+                    {{ form.end_date }}
+                    {% if form.end_date.errors %}
+                        <span class="error">{{ form.end_date.errors[0] }}</span>
+                    {% endif %}
+                </div>
+                <!-- Use 'onclick' event for the confirmation prompt -->
+                <p><input type="submit" value="Submit"></p>
+            </form>
 
-        <!-- List existing term dates -->
-        <table>
-            <tr>
-                <th>Term Name</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                <th>Actions</th>
-            </tr>
-            {% for term_date in term_dates %}
-            <tr>
-                <td>{{ term_date.term_name }}</td>
-                <td>{{ term_date.start_date.strftime('%Y-%m-%d') }}</td>
-                <td>{{ term_date.end_date.strftime('%Y-%m-%d') }}</td>
-                <td>
-                    <form action="{{ url_for('admin.delete_term_date', term_date_id=term_date.id) }}" method="post">
+            <!-- List existing term dates -->
+            <table>
+                <tr>
+                    <th>Term Name</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Actions</th>
+                </tr>
+                {% for term_date in term_dates %}
+                <tr>
+                    <td>{{ term_date.term_name }}</td>
+                    <td>{{ term_date.start_date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ term_date.end_date.strftime('%Y-%m-%d') }}</td>
+                    <td>
+                        <form action="{{ url_for('admin.delete_term_date', term_date_id=term_date.id) }}" method="post">
+                            {{ logout_form.hidden_tag() }}
+                            <input type="submit" value="Delete" onclick="return confirm('Are you sure?');">
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+            <br><br><br>
+            <div class="button-container">
+                <!-- Back Button -->
+                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                <!-- Logout Button -->
+                <div>
+                    <form action="{{ url_for('auth.logout') }}" method="post">
                         {{ logout_form.hidden_tag() }}
-                        <input type="submit" value="Delete" onclick="return confirm('Are you sure?');">
+                        <button type="submit" class="buttonsignout">Logout</button>
                     </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </table>
-        <br><br><br>
-        <div class="button-container">
-            <!-- Back Button -->
-            <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
-            <!-- Logout Button -->
-            <div>
-                <form action="{{ url_for('auth.logout') }}" method="post">
-                    {{ logout_form.hidden_tag() }}
-                    <button type="submit" class="buttonsignout">Logout</button>
-                </form>
+                </div>
             </div>
         </div>
     </div>

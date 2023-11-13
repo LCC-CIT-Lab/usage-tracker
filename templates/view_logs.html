@@ -11,63 +11,63 @@
         <div class="dashboard-header">
             <h2>View Logs</h2>
             <p>Recent activity logs for system administrators.</p>
-        </div>
-
-        <table>
-            <thead>
-                <!-- Pagination Controls -->
-                <div class="pagination-container">
-                    {% if logs_pagination.pages > 1 %}
-                        <a href="{{ url_for('admin.view_logs', page=1) }}">First</a>
-                        {% if logs_pagination.has_prev %}
-                            <a href="{{ url_for('admin.view_logs', page=logs_pagination.prev_num) }}">Prev</a>
+            <table>
+                <thead>
+                    <!-- Pagination Controls -->
+                    <div class="pagination-container">
+                        {% if logs_pagination.pages > 1 %}
+                            <a href="{{ url_for('admin.view_logs', page=1) }}">First</a>
+                            {% if logs_pagination.has_prev %}
+                                <a href="{{ url_for('admin.view_logs', page=logs_pagination.prev_num) }}">Prev</a>
+                            {% endif %}
+                            <span>Page {{ logs_pagination.page }} of {{ logs_pagination.pages }}</span>
+                            {% if logs_pagination.has_next %}
+                                <a href="{{ url_for('admin.view_logs', page=logs_pagination.next_num) }}">Next</a>
+                            {% endif %}
+                            <a href="{{ url_for('admin.view_logs', page=logs_pagination.pages) }}">Last</a>
                         {% endif %}
-                        <span>Page {{ logs_pagination.page }} of {{ logs_pagination.pages }}</span>
-                        {% if logs_pagination.has_next %}
-                            <a href="{{ url_for('admin.view_logs', page=logs_pagination.next_num) }}">Next</a>
-                        {% endif %}
-                        <a href="{{ url_for('admin.view_logs', page=logs_pagination.pages) }}">Last</a>
-                    {% endif %}
-                </div>
-                <tr>
-                    <th>Date/Time</th>
-                    <th>User</th>
-                    <th>Level</th>
-                    <th>Message</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for log in logs_pagination.items %}
-                <tr>
-                    <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                    <td>{{ log.user.username if log.user else 'System' }}</td>
-                    <td>{{ log.level }}</td>
-                    <td>{{ log.message }}</td>
-                </tr>
-                {% else %}
+                    </div>
                     <tr>
-                        <td colspan="4">No logs to display.</td>
+                        <th>Date/Time</th>
+                        <th>User</th>
+                        <th>Level</th>
+                        <th>Message</th>
                     </tr>
-                {% endfor %}
-                
-            </tbody>
-        </table>
-        <br><br><br>
-        <div class="button-container">
-            <!-- Back Button -->
-            <div>
-                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
-            </div>
-            <!-- Add download logs button -->
-            <div class="download-logs">
-                <a href="{{ url_for('admin.download_logs') }}" class="button">Download Logs</a>
-            </div>
-            <!-- Logout Button -->
-            <div>
-                <form action="{{ url_for('auth.logout') }}" method="post">
-                    {{ logout_form.hidden_tag() }}
-                    <button type="submit" class="buttonsignout">Logout</button>
-                </form>
+                </thead>
+                <tbody>
+                    {% for log in logs_pagination.items %}
+                    <tr>
+                        <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>{{ log.user.username if log.user else 'System' }}</td>
+                        <td>{{ log.level }}</td>
+                        <td>{{ log.message }}</td>
+                    </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="4">No logs to display.</td>
+                        </tr>
+                    {% endfor %}
+                    
+                </tbody>
+            </table>
+            <br><br><br>
+            <div class="button-container">
+                <!-- Back Button -->
+                <div>
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                </div>
+                <!-- Add download logs button -->
+                <div class="download-logs">
+                    <!-- Correct the route for downloading logs -->
+                    <a href="{{ url_for('admin.download_logs') }}" class="button" download>Download Logs CSV</a>
+                </div>
+                <!-- Logout Button -->
+                <div>
+                    <form action="{{ url_for('auth.logout') }}" method="post">
+                        {{ logout_form.hidden_tag() }}
+                        <button type="submit" class="buttonsignout">Logout</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

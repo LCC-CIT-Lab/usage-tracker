@@ -16,8 +16,9 @@ h3 {text-align: center;}
     width: auto;
     min-width: 600px; /* Adjust as needed */
     max-width: 800px; /* Adjust as needed */
-    height: 500px; /* Fixed height */
-    overflow: auto; /* Scrollbars for overflow */
+    min-height: 500px; /* Fixed height */
+    height: auto; /* Adjust height */
+   /* overflow: auto; /* Scrollbars for overflow */
     margin: 20px auto;
     padding: 20px;
     box-shadow: 4px 8px 32px rgba(0, 0, 0, 0.1);
@@ -28,7 +29,9 @@ h3 {text-align: center;}
 .dashboard-header {
     min-width: 600px; /* Adjust as needed */
     max-width: 800px; /* Adjust as needed */
-    min-height: 90%;
+    min-height: 500px; /* Fixed height */
+   /* min-height: 90%;*/
+    height: auto; /* Adjust height */
     text-align: center;
     margin-bottom: 10px;
     background-color: #fdb913;

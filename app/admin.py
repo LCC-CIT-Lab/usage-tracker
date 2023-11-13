@@ -175,16 +175,16 @@ def query_selection():
 
         output = StringIO()
         writer = csv.writer(output)
-        writer.writerow(
-            ["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Comments"])
-        for entry in data:
-            writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp,
-                            entry.sign_out_timestamp, entry.comments])
-        output.seek(0)
+        # ... writing to CSV logic ...
 
-        # Save the CSV data in a temporary file on the server
-        csv_path = os.path.join('/tmp', csv_filename)
-        with open(csv_path, 'w') as f:
+        # Define the path for the csv_files directory
+        csv_folder = os.path.join(current_app.root_path, 'csv_files')
+        if not os.path.exists(csv_folder):
+            os.makedirs(csv_folder)
+
+        # Save the CSV data in the csv_files folder
+        csv_path = os.path.join(csv_folder, csv_filename)
+        with open(csv_path, 'w', newline='') as f:
             f.write(output.getvalue())
 
         # Store the filename in the session for retrieval
@@ -610,13 +610,15 @@ def download_csv(filename):
     if '..' in filename or filename.startswith('/'):
         return "Invalid filename", 400
 
-    csv_path = os.path.join('/tmp', filename)
+    # Update the path to the csv_files folder
+    csv_folder = os.path.join(current_app.root_path, 'csv_files')
+    csv_path = os.path.join(csv_folder, filename)
+    
     if os.path.exists(csv_path):
-        current_app.logger.info('Sending Log file...')
-        return send_from_directory('/tmp', filename, as_attachment=True)
+        return send_file(csv_path, as_attachment=True)
     else:
         flash('No CSV data found. Please generate the report again.', 'error')
-        return redirect(url_for('admin.view_logs'))
+        return redirect(url_for('admin.query_selection'))
 
 
 @admin_bp.route('/download_logs')
@@ -624,9 +626,12 @@ def download_csv(filename):
 @require_admin
 def download_logs():
     try:
-        # Generate a unique filename for the CSV
+        # Generate a filename for the CSV
+        csv_folder = os.path.join(current_app.root_path, 'logs')
+        if not os.path.exists(csv_folder):
+            os.makedirs(csv_folder)
         csv_filename = "logs.csv"
-        csv_path = os.path.join('/tmp', csv_filename)
+        csv_path = os.path.join(csv_folder, csv_filename)
         
         with open(csv_path, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -652,6 +657,7 @@ def download_logs():
 
         # Redirect or render a template with a link to download the file
         return send_file(csv_path, as_attachment=True)
-    except:
+    except Exception as e:
+        current_app.logger.error(f"Error in downloading logs: {e}")
         flash('Log file not found', 'error')
         return redirect(url_for('admin.view_logs'))

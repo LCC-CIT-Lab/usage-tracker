@@ -17,34 +17,35 @@
 
         <div class="dashboard-header">
             <h2>Admin Dashboard</h2>
-        </div>
-        <p>Welcome, {{ current_user.username }}!</p>
-        <ul class="dashboard-menu">
-            <!-- Displayed to non-admin users -->
-            <li><a href="{{ url_for('admin.query_selection') }}" autofocus=true>Query Selection</a></li>
-            {% if is_admin %}
-            <!-- Only display this part to admin users -->
-            <li><a href="{{ url_for('admin.ip_management') }}">IP Management</a></li>
-            <li><a href="{{ url_for('admin.term_dates_management') }}">Term Dates Management</a></li>
-            <li><a href="{{ url_for('admin.user_management') }}">User Management</a></li>
-            <li><a href="{{ url_for('admin.view_logs') }}">View Logs</a></li>
-            {% endif %}
-            <li>
-                {% if lab_location_id %}
-                <a href="{{ url_for('admin.set_message', lab_location_id=lab_location_id) }}">Set Message</a>
-                {% else %}
-                <span>Set Message (Unavailable)</span>
+        
+            <p>Welcome, {{ current_user.username }}!</p>
+            <ul class="dashboard-menu">
+                <!-- Displayed to non-admin users -->
+                <li><a href="{{ url_for('admin.query_selection') }}" autofocus=true>Query Selection</a></li>
+                {% if is_admin %}
+                <!-- Only display this part to admin users -->
+                <li><a href="{{ url_for('admin.ip_management') }}">IP Management</a></li>
+                <li><a href="{{ url_for('admin.term_dates_management') }}">Term Dates Management</a></li>
+                <li><a href="{{ url_for('admin.user_management') }}">User Management</a></li>
+                <li><a href="{{ url_for('admin.view_logs') }}">View Logs</a></li>
                 {% endif %}
-            </li>
-        </ul>
-        <br><br><br>
-        <div class="button-containerdashboard">
-            <!-- Logout Button -->
-            <div>
-                <form action="{{ url_for('auth.logout') }}" method="post">
-                    {{ logout_form.hidden_tag() }}
-                    <button type="submit" class="buttonsignout">Logout</button>
-                </form>
+                <li>
+                    {% if lab_location_id %}
+                    <a href="{{ url_for('admin.set_message', lab_location_id=lab_location_id) }}">Set Message</a>
+                    {% else %}
+                    <span>Set Message (Unavailable)</span>
+                    {% endif %}
+                </li>
+            </ul>
+            <br><br><br>
+            <div class="button-containerdashboard">
+                <!-- Logout Button -->
+                <div>
+                    <form action="{{ url_for('auth.logout') }}" method="post">
+                        {{ logout_form.hidden_tag() }}
+                        <button type="submit" class="buttonsignout">Logout</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

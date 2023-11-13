@@ -20,7 +20,7 @@ main_bp = Blueprint('main', __name__)
 config = load_config()
 
 # Configure the logging level for Paramiko to DEBUG
-util.log_to_file('/tmp/paramiko.log', level=5)
+util.log_to_file('paramiko.log', level=5)
 
 
 def generate_csrf_token(secret_key):

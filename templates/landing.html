@@ -39,7 +39,7 @@
                 <div>
                     <h3>
                         <br>
-                        L-{{ form.l_number(size=6, placeholder="00000000", autofocus=true) }}
+                        L - {{ form.l_number(size=7, placeholder="00000000", autofocus=true) }}
                         {% if form.l_number.errors %}
                             <div class="error">{{ form.l_number.errors[0] }}</div>
                         {% endif %}

@@ -31,50 +31,52 @@
 
         <div class="dashboard-header">
             <h2>Query Selection</h2>
-        </div>
-        <form method="post"><br><br>
-            {{ form.hidden_tag() }}
-            <div class="form-group">
-                {{ form.start_date.label }} {{ form.start_date(class_='date-input') }}
-                {% for error in form.start_date.errors %}
-                    <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}
-            </div>
-            <div class="form-group">
-                {{ form.end_date.label }} {{ form.end_date(class_='date-input') }}
-                {% for error in form.end_date.errors %}
-                    <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}
-            </div>
-            <div class="form-group">
-                {{ form.term_date_range.label }} {{ form.term_date_range }}
-                {% for error in form.term_date_range.errors %}
-                    <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}
-            </div>
 
-            <div>
-                <br>{{ form.submit }}
-            </div>
+            <form method="post"><br><br>
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    {{ form.start_date.label }} {{ form.start_date(class_='date-input') }}
+                    {% for error in form.start_date.errors %}
+                        <span style="color: red;">[{{ error }}]</span>
+                    {% endfor %}
+                </div>
+                <div class="form-group">
+                    {{ form.end_date.label }} {{ form.end_date(class_='date-input') }}
+                    {% for error in form.end_date.errors %}
+                        <span style="color: red;">[{{ error }}]</span>
+                    {% endfor %}
+                </div>
+                <div class="form-group">
+                    {{ form.term_date_range.label }} {{ form.term_date_range }}
+                    {% for error in form.term_date_range.errors %}
+                        <span style="color: red;">[{{ error }}]</span>
+                    {% endfor %}
+                </div>
+
+                <div>
+                    <br>{{ form.submit }}
+                </div>
+                <br>
+                <div class="form-group">
+                    {% if csv_filename %}
+                    <!-- Ensure the route and filename are correctly referenced -->
+                    <a href="{{ url_for('admin.download_csv', filename=csv_filename) }}" class="button" download>Download CSV</a>
+                    {% endif %}
+                </div>
+            </form>
             <br>
-            <div class="form-group">
-                {% if csv_filename %}
-                <a href="{{ url_for('main.download_csv', filename=csv_filename) }}" class="button" download>Download CSV</a>
-                {% endif %}
-            </div>
-        </form>
-        <br>
 
-        <br><br><br>
-        <div class="button-container">
-            <!-- Back Button -->
-            <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
-            <!-- Logout Button -->
-            <div>
-                <form action="{{ url_for('auth.logout') }}" method="post">
-                    {{ logout_form.hidden_tag() }}
-                    <button type="submit" class="buttonsignout">Logout</button>
-                </form>
+            <br><br><br>
+            <div class="button-container">
+                <!-- Back Button -->
+                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                <!-- Logout Button -->
+                <div>
+                    <form action="{{ url_for('auth.logout') }}" method="post">
+                        {{ logout_form.hidden_tag() }}
+                        <button type="submit" class="buttonsignout">Logout</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
