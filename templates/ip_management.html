@@ -23,32 +23,34 @@
         </div>
         <div class="add-ip-form">
             <h3>Add IP Mapping</h3>
-            <form method="post" action="{{ url_for('main.ip_management') }}">
+            <form method="post" action="{{ url_for('admin.ip_management') }}">
                 {{ add_ip_form.hidden_tag() }}
                 <p>
                     {{ add_ip_form.ip_address.label }}<br>
-                    {{ add_ip_form.ip_address(size=32) }}
+                    {{ add_ip_form.ip_address(size=10) }}
                 </p>
                 <p>
                     {{ add_ip_form.location_name.label }}<br>
-                    {{ add_ip_form.location_name(size=32) }}
+                    {{ add_ip_form.location_name(size=15) }}
                 </p>
                 <p>{{ add_ip_form.submit() }}</p>
             </form>
         </div>
+        <div>
+            <h3>Delete IP Mapping</h3>
 
-<ul class="ip-list">
-    {% for ip_mapping in ip_mappings %}
-    <li>
-        <span>{{ ip_mapping.ip_address }} - {{ ip_mapping.location_name }}</span>
-        <form method="post" action="{{ url_for('admin.remove_ip_mapping', ip_id=ip_mapping.id) }}">
-                {{ remove_ip_form.hidden_tag() }}
-            <input type="hidden" name="ip_id" value="{{ ip_mapping.id }}">
-            <button type="submit">Delete</button>
-        </form>
-    </li>
-    {% endfor %}
-</ul>
+            <ul class="ip-list">
+                {% for ip_mapping in ip_mappings %}
+                <li>
+                    <span>{{ ip_mapping.ip_address }} - {{ ip_mapping.location_name }}</span>
+                    <form method="post" action="{{ url_for('admin.remove_ip_mapping', ip_id=ip_mapping.id) }}">
+                            {{ remove_ip_form.hidden_tag() }}
+                        <input type="hidden" name="ip_id" value="{{ ip_mapping.id }}">
+                        <button type="submit" class="buttonsignout">Delete</button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
         </div>
         <br><br><br>
         <div class="button-container">

@@ -37,12 +37,13 @@
                 </div>
             </form>
             <br><br>
+            <h3>Delete Landing Message</h3>
             <!-- Display existing messages -->
             {% for message in existing_messages %}
             <div class="existing-message">
                 <p>{{ message.content }}</p>
                 <!-- Delete button form for each message -->
-                <form action="{{ url_for('main.delete_message', message_id=message.id) }}" method="post">
+                <form action="{{ url_for('admin.delete_message', message_id=message.id) }}" method="post">
                     {{ form.hidden_tag() }}
                     <input type="submit" value="Delete">
                 </form>

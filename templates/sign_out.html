@@ -19,7 +19,7 @@
                 {{ form.hidden_tag() }}
                 <input type="hidden" name="l_number" value="{{ request.args.get('l_number') }}">
                 <label for="comment">{{ form.comment.label.text }}</label> <!-- Assuming you want to show the label -->
-                {{ form.comment(size=32) }}
+                {{ form.comment(size=32, autofocus=true) }}
                 <br><br><br><br><br>
                 <div class="button-container">
                     <input type="submit" class="btn btn-primary" value="Comment">

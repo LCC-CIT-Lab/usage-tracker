@@ -99,6 +99,16 @@ form {
     left: 20px; /* Aligns with the padding of the container */
     padding: 0; /* Resets any padding that might affect alignment */
 }
+.button-containerdashboard {
+    display: flex;
+    margin-top: 20px;
+    justify-content: center; /* Keeps buttons at opposite ends */
+    position: absolute;
+    width: calc(100% - 40px); /* Width is the container's width minus padding */
+    bottom: 20px; /* Distance from the bottom of the container */
+    left: 20px; /* Aligns with the padding of the container */
+    padding: 0; /* Resets any padding that might affect alignment */
+}
 .button, input[type='submit'] {
     padding: 10px 0px; /* Uniform padding for all buttons */
     font-size: 16px;
@@ -112,11 +122,9 @@ form {
     /* Ensure the width of 'Back' and 'Logout' buttons are the same if needed */
     min-width: 100px; /* Adjust as needed to fit the content */
 }
-
 .button:hover, input[type='submit']:hover {
     background-color: #00529b;
 }
-
 .buttonsignout {
     padding: 10px 0px; /* Uniform padding for all buttons */
     font-size: 16px;
@@ -130,7 +138,6 @@ form {
     /* Ensure the width of 'Back' and 'Logout' buttons are the same if needed */
     min-width: 100px; /* Adjust as needed to fit the content */
 }
-
 /* Remove margins from the last button (Logout) to align properly */
 .button-container div:last-child {
     margin-bottom: 0;
@@ -228,7 +235,11 @@ form {
 .user-table th {
     background-color: #f2f2f2;
 }
-
+/* Scrollbar for logs table */
+.table-container {
+    max-height: 500px; /* Adjust as needed */
+    overflow-y: auto;
+}
 /* User action dropdown menu styling */
 .user-actions {
     position: relative;

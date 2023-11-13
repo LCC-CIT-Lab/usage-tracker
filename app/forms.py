@@ -37,6 +37,12 @@ class LogoutForm(FlaskForm):
     submit = SubmitField('Logout')
 
 
+class AddUserForm(FlaskForm):
+    ip_address = StringField('IP Address', validators=[DataRequired(), IPAddress()])
+    location_name = StringField('Location Name', validators=[DataRequired()])
+    submit = SubmitField('Add IP Mapping')
+
+
 class QuerySelectionForm(FlaskForm):
     term_date_range = SelectField('Term Date Range', choices=[])
     start_date = DateField('Start Date', validators=[Optional()])

@@ -86,22 +86,19 @@
                     </td>
                     <td>
                         <!-- Remove IP Mapping -->
-                        {% for user in users %}
-                          <!-- Check if the user has an ip_location_id -->
-                          {% if user.ip_location_id %}
-                            <form action="{{ url_for('admin.remove_ip_mapping', ip_id=user.ip_location_id) }}" method="post">
-                              <!-- CSRF token for form submission -->
-                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                              <!-- Additional form fields, if any -->
-                              <!-- Submit button -->
-                              <button type="submit">Remove IP Mapping</button>
+                        <!-- Check if the user has an ip_location_id -->
+                        {% if user.ip_location_id %}
+                            <form action="{{ url_for('admin.remove_user_ip_mapping', user_id=user.id) }}" method="post">
+                            <!-- CSRF token for form submission -->
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <!-- Additional form fields, if any -->
+                            <!-- Submit button -->
+                            <button type="submit">Remove IP Mapping</button>
                             </form>
-                          {% else %}
+                        {% else %}
                             <!-- Display something if there is no ip_location_id for this user -->
                             <p>This user does not have an IP mapping to remove.</p>
-                          {% endif %}
-                        {% endfor %}
-
+                        {% endif %}
                     </td>
                     <td>
                         <!-- Remove User -->
@@ -119,15 +116,19 @@
             </tbody>
         </table>
     </form>
-        <br><br><br>
-        <!-- Logout -->
-        <div class="button-container">
-            <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+
+    <br><br><br>
+    <div class="button-container">
+        <!-- Back Button -->
+        <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+        <!-- Logout Button -->
+        <div>
             <form action="{{ url_for('auth.logout') }}" method="post">
                 {{ logout_form.hidden_tag() }}
                 <button type="submit" class="buttonsignout">Logout</button>
             </form>
         </div>
+    </div>
     </div>
 </body>
 </html>

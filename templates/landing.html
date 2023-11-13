@@ -12,11 +12,13 @@
         <div class="dashboard-header">
 
             {% if lab_location %}
-                {% for message in lab_location.messages %}
-                    <div class="lab-message">
-                        {{ message.content|safe }}
-                    </div>
-                {% endfor %}
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="lab-message">
+                            {{ message.content|safe }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
             {% endif %}
 
             <br><br>
@@ -35,7 +37,7 @@
                 {{ form.hidden_tag() }}
                 <div>
                     <br>
-                    L-{{ form.l_number(size=6, placeholder="00000000") }}
+                    L-{{ form.l_number(size=6, placeholder="00000000", autofocus=true) }}
                     {% if form.l_number.errors %}
                         <div class="error">{{ form.l_number.errors[0] }}</div>
                     {% endif %}

@@ -19,12 +19,12 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="lab_location" class="form-label">Lab Location</label>
+                    <label for="lab_location" class="form-label">Location</label>
                     <div class="lab-location">{{ lab_location_name }}</div>
                 </div>
                 <div class="form-group">
                     {{ form.class_selected.label(class="form-label") }}
-                    {{ form.class_selected(class="form-control") }}
+                    {{ form.class_selected(class="form-control", autofocus=true) }}
                     {% if form.class_selected.errors %}
                         <div class="error">{{ form.class_selected.errors[0] }}</div>
                     {% endif %}
