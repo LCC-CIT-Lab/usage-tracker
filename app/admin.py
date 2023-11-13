@@ -146,31 +146,40 @@ def query_selection():
     ]
 
     if form.validate_on_submit():
-        # If a term date range was selected, use it to set the start and end dates
-        if form.term_date_range.data:
-            term_date = TermDates.query.get(form.term_date_range.data)
-            if term_date is not None:
-                start_date = term_date.start_date
-                end_date = term_date.end_date + timedelta(days=1)
-            else:
-                # If no term date range was selected, use the manually input dates
-                start_date = form.start_date.data
-                end_date = form.end_date.data + timedelta(days=1)
+        term_date = TermDates.query.get(form.term_date_range.data) if form.term_date_range.data else None
 
+        if term_date:
+            start_date = term_date.start_date
+            end_date = term_date.end_date + timedelta(days=1)
+            end_date_file = term_date.end_date
+        else:
+            start_date = form.start_date.data
+            end_date = form.end_date.data
+            end_date_file = end_date
+
+            if start_date and end_date:
+                end_date += timedelta(days=1)
+
+            else:
+                flash('Please specify start and end dates.', 'error')
+                return render_template('query_selection.html', form=form, logout_form=logout_form, csv_filename=None)
+        
         # Fetch data from DB
         data = SignInData.query.filter(
             SignInData.sign_in_timestamp >= start_date,
             SignInData.sign_in_timestamp < end_date
         ).all()
+
         # Generate a unique filename for the CSV
-        csv_filename = f"attendance_data_{start_date}_{end_date}.csv"
+        csv_filename = f"attendance_data_{start_date.strftime('%Y-%m-%d')}_{end_date_file.strftime('%Y-%m-%d')}.csv"
+
         output = StringIO()
         writer = csv.writer(output)
         writer.writerow(
             ["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Comments"])
         for entry in data:
             writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp,
-                             entry.sign_out_timestamp, entry.comments])
+                            entry.sign_out_timestamp, entry.comments])
         output.seek(0)
 
         # Save the CSV data in a temporary file on the server
@@ -318,13 +327,13 @@ def term_dates_management():
 def determine_term_name(start_date):
     month = start_date.month
     year = start_date.year
-    if month in range(1, 4):  # January to March
+    if month == 1:  # January
         term_name = f'Winter {year}'
-    elif month in range(4, 7):  # April to June
+    elif month == 3:  # March
         term_name = f'Spring {year}'
-    elif month in range(7, 10):  # July to September
+    elif month == 5:  # June
         term_name = f'Summer {year}'
-    else:  # October to December
+    elif month == 9:  # June
         term_name = f'Fall {year}'
     return term_name
 
@@ -556,7 +565,7 @@ def remove_ip_mapping(ip_id):
         db.session.rollback()
         flash(f'An error occurred while removing the IP mapping: {e}', 'error')
 
-    return redirect(url_for('admin.user_management'))
+    return redirect(url_for('admin.ip_management'))
 
 
 ## LOG DATA PAGE ##

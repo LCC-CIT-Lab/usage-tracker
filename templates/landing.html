@@ -31,23 +31,26 @@
                 {% endif %}
             {% endwith %}
 
-            <div class="dashboard-header-signin"><h3>{{ lab_location_name }} Sign-In</h3></div>
+            <br><br><br><br>
+            <div class="dashboard-header-signin"><h3>{{ lab_location_name }} <br> Sign In  / Sign Out</h3></div>
 
             <form method="post" action="{{ url_for('main.landing') }}">
                 {{ form.hidden_tag() }}
                 <div>
-                    <br>
-                    L-{{ form.l_number(size=6, placeholder="00000000", autofocus=true) }}
-                    {% if form.l_number.errors %}
-                        <div class="error">{{ form.l_number.errors[0] }}</div>
-                    {% endif %}
+                    <h3>
+                        <br>
+                        L-{{ form.l_number(size=6, placeholder="00000000", autofocus=true) }}
+                        {% if form.l_number.errors %}
+                            <div class="error">{{ form.l_number.errors[0] }}</div>
+                        {% endif %}
+                    </h3>
                 </div>
                 <br>
                 <div>
-                    <input type="submit" value="Sign-In">
+                    <input type="submit" value="Submit">
                 </div>
             </form>
-            <br>
+            <br><br>
             <span id="sign-in-count" data-lab-id="{{ lab_id }}">Loading...</span>
             <script>
                 $(document).ready(function() {
@@ -70,7 +73,7 @@
                             $('#sign-in-count').text('Invalid lab ID');
                         }
                     }
-                    setInterval(updateSignedInCount, 5000);
+                    setInterval(updateSignedInCount, 60000);
                 });
 
             </script>

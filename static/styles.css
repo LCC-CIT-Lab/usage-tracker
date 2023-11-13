@@ -13,11 +13,12 @@ h1 {text-align: center;}
 h2 {text-align: center;}
 h3 {text-align: center;}
 .dashboard-container {
-    width: 100%;
+    width: auto;
+    min-width: 600px; /* Adjust as needed */
     max-width: 800px; /* Adjust as needed */
+    height: 500px; /* Fixed height */
+    overflow: auto; /* Scrollbars for overflow */
     margin: 20px auto;
-    margin-top: -50px; /* Adjust as needed */
-    flex: 0 1 auto; /* Allows the container to shrink if needed */
     padding: 20px;
     box-shadow: 4px 8px 32px rgba(0, 0, 0, 0.1);
     background: white;
@@ -25,6 +26,9 @@ h3 {text-align: center;}
     position: relative;
 }
 .dashboard-header {
+    min-width: 600px; /* Adjust as needed */
+    max-width: 800px; /* Adjust as needed */
+    min-height: 90%;
     text-align: center;
     margin-bottom: 10px;
     background-color: #fdb913;
@@ -83,6 +87,9 @@ form {
 .form-control, 
 .lab-location {
     flex-grow: 1; /* Allows the input or content to take up the remaining space */
+    align-items: center; /* This will vertically center align the items if they have different heights */
+    justify-content: center; /* This will create space between the label and the input or content */
+    margin-bottom: 15px;
 }
 
 /* If you want to ensure that the label and the content are aligned to their respective sides */
@@ -184,6 +191,8 @@ form {
 .lab-location {
     display: inline-block;
     margin-bottom: 10px; /* Adjust spacing as needed */
+
+
 }
 /* Existing CSS ... */
 

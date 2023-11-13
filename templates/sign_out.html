@@ -12,9 +12,12 @@
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
-            <h3>Email a comment or continue.</h3>
+            <h3>Signing out ...</h3>
         </div>
         <div>
+            <div><br><br>
+                Enter a comment or continue.
+            </div><br><br>
             <form method="post">
                 {{ form.hidden_tag() }}
                 <input type="hidden" name="l_number" value="{{ request.args.get('l_number') }}">

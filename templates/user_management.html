@@ -93,7 +93,7 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <!-- Additional form fields, if any -->
                             <!-- Submit button -->
-                            <button type="submit">Remove IP Mapping</button>
+                            <button type="submit" onclick="return confirm('Are you sure?');">Remove IP Mapping</button>
                             </form>
                         {% else %}
                             <!-- Display something if there is no ip_location_id for this user -->
@@ -104,7 +104,7 @@
                         <!-- Remove User -->
                         <form action="{{ url_for('admin.remove_user', user_id=user.id) }}" method="post">
                             {{ form.hidden_tag() }}
-                            <button type="submit">Remove User</button>
+                            <button type="submit" onclick="return confirm('Are you sure?');">Remove User</button>
                         </form>
                     </td>
                 </tr>

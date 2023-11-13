@@ -46,7 +46,7 @@
                     <form method="post" action="{{ url_for('admin.remove_ip_mapping', ip_id=ip_mapping.id) }}">
                             {{ remove_ip_form.hidden_tag() }}
                         <input type="hidden" name="ip_id" value="{{ ip_mapping.id }}">
-                        <button type="submit" class="buttonsignout">Delete</button>
+                        <button type="submit" class="buttonsignout" onclick="return confirm('Are you sure?');">Delete</button>
                     </form>
                 </li>
                 {% endfor %}

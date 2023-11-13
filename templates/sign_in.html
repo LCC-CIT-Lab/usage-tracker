@@ -10,8 +10,7 @@
             <form method="post" action="{{ url_for('main.sign_in') }}" class="sign-in-form">
                 {{ form.hidden_tag() }}
                 <div class="form-group">
-                    {{ form.l_number.label(class="form-label") }}
-                    <div style="flex-grow: 1;">
+                    <div>
                         {{ form.l_number(class="form-control") }}
                         {% if form.l_number.errors %}
                             <div class="error">{{ form.l_number.errors[0] }}</div>
@@ -19,7 +18,6 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="lab_location" class="form-label">Location</label>
                     <div class="lab-location">{{ lab_location_name }}</div>
                 </div>
                 <div class="form-group">
@@ -35,6 +33,11 @@
             {% for message in get_flashed_messages() %}
                 <div class="alert">{{ message }}</div>
             {% endfor %}
+            <br><br><br>
+            <div class="button-container">
+                <!-- Back Button -->
+                <a href="{{ url_for('main.landing') }}" class="button">Back</a>
+            </div>
         </div>
     </div>
 </body>
