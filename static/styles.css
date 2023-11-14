@@ -83,6 +83,8 @@ form {
 }
 
 .form-label {
+    width: 30%; /* Fixed width for all labels */
+    text-align: right; /* Align the text to the right of the label */
     flex-basis: 30%; /* Adjust the width of the label as needed */
     margin-right: 10px; /* Provides some space between the label and the input or content */
 }
@@ -93,8 +95,19 @@ form {
     align-items: center; /* This will vertically center align the items if they have different heights */
     justify-content: center; /* This will create space between the label and the input or content */
     margin-bottom: 15px;
+    width: 70%; /* Remaining width for input field */
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box; /* Include padding and border in the width */
 }
-
+#password {
+    width: 100%; /* Ensure it matches the width of other input fields */
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
 /* If you want to ensure that the label and the content are aligned to their respective sides */
 .form-group > *:first-child { 
     margin-right: auto; 
