@@ -55,11 +55,12 @@ def landing():
 
     if form.validate_on_submit():
         l_number = normalize_l_number(form.l_number.data)
-        session['l_number'] = l_number
 
         if not student_exists(l_number):
             flash('Invalid L number, please sign-in again.')
             return redirect(url_for('main.landing', lab_id=lab_id))
+
+        session['l_number'] = l_number
 
         # Additional logging to trace the flow
         print("Redirecting to chooseSignout")
@@ -139,7 +140,13 @@ def sign_in():
         # Fetch classes and set choices for class_selected
         classes_param = request.args.get('classes', '')
         classes = classes_param.split(',') if classes_param else get_student_classes(session.get('l_number', ''))
+        classes.append('Other')
         form.class_selected.choices = [(cls, cls) for cls in classes]
+
+        # Pre-select the first class if it exists
+        if request.method == 'GET':
+            if classes:
+                form.class_selected.data = classes[0]
 
         # Prepopulate l_number from query string or session
         l_number = request.args.get('l_number') or session.get('l_number')
@@ -151,9 +158,11 @@ def sign_in():
             flash('L number is missing. Please try again.', 'error')
             return redirect(url_for('main.landing'))
 
+        print("Form data:", request.form)
+
         if form.validate_on_submit():
             current_app.logger.debug("Form is valid, processing sign-in")
-            
+            print("Class Selected:", form.class_selected.data)  # Debugging
             class_selected = form.class_selected.data
 
             sign_in_data = SignInData(
@@ -221,29 +230,35 @@ def process_sign_out(l_number, comment):
 
 def student_exists(l_number):
     """Check if the student exists in the TSV file."""
-    try:
-        with SSHFS(
-            host=config['sshfs']['HOST'],
-            user=config['sshfs']['USER'],
-            pkey=config['sshfs']['PRIVATE_KEY_PATH'],
-            port=22
-        ) as sshfs:
-            tsv_file_path = config['sshfs']['REMOTE_TSV_PATH'] + '/zsrslst_cit.txt'
-            if sshfs.exists(tsv_file_path):
-                with sshfs.open(tsv_file_path, 'r') as file:
-                    reader = csv.reader(file, delimiter='\t')
-                    return any(l_number == row[0] for row in reader)
-    except Exception as e:
-        current_app.logger.error(f"SSHFS error: {e}")
-
-    # Fallback to local file
+    
+    # Try to read from the local file first
     try:
         with open('zsrslst_cit.txt', 'r') as file:
             reader = csv.reader(file, delimiter='\t')
-            return any(l_number == row[0] for row in reader)
+            for row in reader:
+                if l_number == row[0]:
+                    return True
     except FileNotFoundError:
-        current_app.logger.error('Local file zsrslst_cit.txt not found')
-        return False
+        current_app.logger.error('Local file zsrslst_cit.txt not found, trying SSHFS')
+
+    # If local file is not found, try SSHFS
+    if os.path.exists(config['sshfs']['PRIVATE_KEY_PATH']):
+        try:
+            with SSHFS(
+                host=config['sshfs']['HOST'],
+                user=config['sshfs']['USER'],
+                pkey=config['sshfs']['PRIVATE_KEY_PATH'],
+                port=22
+            ) as sshfs:
+                tsv_file_path = config['sshfs']['REMOTE_TSV_PATH'] + '/zsrslst_cit.txt'
+                if sshfs.exists(tsv_file_path):
+                    with sshfs.open(tsv_file_path, 'r') as file:
+                        reader = csv.reader(file, delimiter='\t')
+                        return any(l_number == row[0] for row in reader)
+        except Exception as e:
+            current_app.logger.error(f"SSHFS error: {e}")
+    
+    return False
 
 
 def get_student_today(l_number):
@@ -313,48 +328,50 @@ def get_student_classes(l_number):
     class_ids = []
     classes = []
 
+    # Fallback to local files if SSHFS fails or is not available
     try:
-        with SSHFS(
-            host=config['sshfs']['HOST'],
-            user=config['sshfs']['USER'],
-            pkey=config['sshfs']['PRIVATE_KEY_PATH']
-        ) as sshfs:
-            # Read from SSHFS if available
-            if sshfs.exists('/data/zsrsinf_cit.txt'):
-                with sshfs.open('/data/zsrsinf_cit.txt', 'r') as file:
-                    reader = csv.reader(file, delimiter='\t')
-                    for row in reader:
-                        if l_number.strip('"') == row[0].strip('"'):
-                            class_ids.append(row[1].strip('"'))
+        with open('zsrslst_cit.txt', 'r') as file:
+            reader = csv.reader(file, delimiter='\t')
+            for row in reader:
+                if l_number.strip('"') == row[0].strip('"'):
+                    class_ids.append(row[1].strip('"'))
 
-            if sshfs.exists('/data/zsrsecl_cit.txt'):
-                with sshfs.open('/data/zsrsecl_cit.txt', 'r') as file:
-                    reader = csv.reader(file, delimiter='\t')
-                    for row in reader:
-                        if row[1].strip('"') in class_ids:
-                            class_name = f"{row[2]} {row[3]}: {row[4]}"
-                            classes.append(class_name)
-    except Exception as e:
-        current_app.logger.error(f"SSHFS error: {e}")
+        with open('zsrsecl_cit.txt', 'r') as file:
+            reader = csv.reader(file, delimiter='\t')
+            for row in reader:
+                if row[1].strip('"') in class_ids:
+                    class_name = f"{row[2]} {row[3]}: {row[4]}"
+                    classes.append(class_name)
 
-        # Fallback to local files if SSHFS fails or is not available
+    except FileNotFoundError as e:
+        current_app.logger.error(f"Local file not found: {e}")
+        return []
+
+    # Fallback to SSHFS if local files are not found
+    if os.path.exists(config['sshfs']['PRIVATE_KEY_PATH']):
         try:
-            with open('zsrslst_cit.txt', 'r') as file:
-                reader = csv.reader(file, delimiter='\t')
-                for row in reader:
-                    if l_number.strip('"') == row[0].strip('"'):
-                        class_ids.append(row[1].strip('"'))
+            with SSHFS(
+                host=config['sshfs']['HOST'],
+                user=config['sshfs']['USER'],
+                pkey=config['sshfs']['PRIVATE_KEY_PATH']
+            ) as sshfs:
+                # Read from SSHFS if available
+                if sshfs.exists('/data/zsrsinf_cit.txt'):
+                    with sshfs.open('/data/zsrsinf_cit.txt', 'r') as file:
+                        reader = csv.reader(file, delimiter='\t')
+                        for row in reader:
+                            if l_number.strip('"') == row[0].strip('"'):
+                                class_ids.append(row[1].strip('"'))
 
-            with open('zsrsecl_cit.txt', 'r') as file:
-                reader = csv.reader(file, delimiter='\t')
-                for row in reader:
-                    if row[1].strip('"') in class_ids:
-                        class_name = f"{row[2]} {row[3]}: {row[4]}"
-                        classes.append(class_name)
-
-        except FileNotFoundError as e:
-            current_app.logger.error(f"Local file not found: {e}")
-            return []
+                if sshfs.exists('/data/zsrsecl_cit.txt'):
+                    with sshfs.open('/data/zsrsecl_cit.txt', 'r') as file:
+                        reader = csv.reader(file, delimiter='\t')
+                        for row in reader:
+                            if row[1].strip('"') in class_ids:
+                                class_name = f"{row[2]} {row[3]}: {row[4]}"
+                                classes.append(class_name)
+        except Exception as e:
+            current_app.logger.error(f"SSHFS error: {e}")
 
     return list(set(classes))
 

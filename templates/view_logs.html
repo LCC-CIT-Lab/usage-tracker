@@ -9,7 +9,9 @@
 
     <div class="dashboard-container">
         <div class="dashboard-header">
-            <h2>View Logs</h2>
+            <div class="dashboard-header-signin">
+                <h2>View Logs</h2>
+            </div>
             <p>Recent activity logs for system administrators.</p>
             <table>
                 <thead>
@@ -57,7 +59,7 @@
                     <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
                 </div>
                 <!-- Add download logs button -->
-                <div class="download-logs">
+                <div>
                     <!-- Correct the route for downloading logs -->
                     <a href="{{ url_for('admin.download_logs') }}" class="button" download>Download Logs CSV</a>
                 </div>

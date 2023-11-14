@@ -8,7 +8,9 @@
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
-            <h2>User Management</h2>
+            <div class="dashboard-header-signin">
+                <h2>User Management</h2>
+            </div>
             <!-- Add User Form -->
             <div class="add-user-form">
                 <h3>Add New User</h3>
@@ -27,92 +29,51 @@
 
             <!-- User Table -->
             <h3>User Table</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Username</th>
-                        <th>Email</th>
-                        <th>Admin</th>
-                        <th>Can Set Message?</th>
-                        <th>IP Mapping Name</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
+            <form action="{{ url_for('admin.apply_bulk_actions') }}" method="post">
+                <table>
+                    <!-- Table Headers -->
+                    <thead>
+                        <tr>
+                            <th>Select</th>
+                            <th>ID</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Admin</th>
+                            <th>Can Set Message?</th>
+                            <th>IP Mapping Name</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {% for user in users %}
                         <tr>
+                            <td>
+                                <input type="checkbox" name="selected_users" value="{{ user.id }}">
+                            </td>
                             <td>{{ user.id }}</td>
                             <td>{{ user.username }}</td>
                             <td>{{ user.email }}</td>
                             <td>{{ "Yes" if user.is_admin else "No" }}</td>
                             <td>{{ "Yes" if user.can_set_message else "No" }}</td>
                             <td>
-                                {% if user.ip_location_id %}
-                                    {% if user.ip_location %}
-                                        {{ user.ip_location.location_name }}
-                                    {% else %}
-                                        <!-- This message will only display if there's an issue with the ip_location relation -->
-                                        Missing IP Location Object
-                                    {% endif %}
-                                {% else %}
-                                    Not Set
-                                {% endif %}
+                                <!-- List current IP mappings -->
+                                {% for ip_location in user.ip_locations %}
+                                    <div>{{ ip_location.location_name }}
+                                    </div>
+                                {% endfor %}
                             </td>
-                            <td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
 
-                            <!-- Toggle Message Permission -->
-                            <form action="{{ url_for('admin.toggle_message_permission', user_id=user.id) }}" method="post">
-                                {{ form.hidden_tag() }}
-                                <button type="submit">Toggle Message Permission</button>
-                            </form>
-                            </td>
-                            <td>
-                            <!-- Update IP Mapping -->
-                            <form action="{{ url_for('admin.update_user_ip_mapping', user_id=user.id) }}" method="post">
-                                {{ form.hidden_tag() }}
-                                <select name="ip_mapping_id">
-                                    <option value="">Select IP Mapping</option>
-                                    {% for ip_location in ip_locations %}
-                                    <option value="{{ ip_location.id }}" {% if user.ip_location_id == ip_location.id %} selected {% endif %}>
-                                        {{ ip_location.location_name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <button type="submit">Update IP Mapping</button>
-                            </form>
-                        </td>
-                        <td>
-                            <!-- Remove IP Mapping -->
-                            <!-- Check if the user has an ip_location_id -->
-                            {% if user.ip_location_id %}
-                                <form action="{{ url_for('admin.remove_user_ip_mapping', user_id=user.id) }}" method="post">
-                                <!-- CSRF token for form submission -->
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <!-- Additional form fields, if any -->
-                                <!-- Submit button -->
-                                <button type="submit" onclick="return confirm('Are you sure?');">Remove IP Mapping</button>
-                                </form>
-                            {% else %}
-                                <!-- Display something if there is no ip_location_id for this user -->
-                                <p>This user does not have an IP mapping to remove.</p>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <!-- Remove User -->
-                            <form action="{{ url_for('admin.remove_user', user_id=user.id) }}" method="post">
-                                {{ form.hidden_tag() }}
-                                <button type="submit" onclick="return confirm('Are you sure?');">Remove User</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="7">No users found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                <!-- Action Buttons -->
+                <div class="actions">
+                    {{ form.hidden_tag() }}
+                    <button type="submit" name="action" value="toggle_message">Toggle Message Permission</button>
+                    <button type="submit" name="action" value="cycle_ip_mapping">Cycle IP Mapping</button>
+                    <button type="submit" name="action" value="remove_users">Remove Selected Users</button>
+                </div>
+            </form>
             <br><br><br>
             <div class="button-container">
                 <!-- Back Button -->

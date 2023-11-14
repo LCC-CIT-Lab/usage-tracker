@@ -11,8 +11,9 @@
             {% if flash_message %}
             <p>{{ flash_message }}</p>
             {% endif %}
-            
-            <h1>Login</h1>
+            <div class="dashboard-header-signin">
+                <h1>Login</h1>
+            </div><br>
             <form action="{{ url_for('auth.login') }}" method="post">
                 {{ form.hidden_tag() }}
                 <div class="form-group">

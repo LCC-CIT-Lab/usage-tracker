@@ -17,6 +17,8 @@ import logging
 import traceback
 import csv
 import os
+import itertools
+
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -273,7 +275,7 @@ def add_user():
 @admin_bp.route('/remove_user/<int:user_id>', methods=['POST'])
 @login_required
 @require_admin
-def remove_user(user_id):
+def remove_user(user_id, redirect_enabled=True):
     try:
         user = User.query.get_or_404(user_id)
         current_app.logger.info(f"Attempting to remove user with ID: {user_id}")
@@ -289,7 +291,63 @@ def remove_user(user_id):
         current_app.logger.error(f"Error removing user with ID {user_id}: {e}", exc_info=True)
         flash(f'Error removing user: {e}', 'error')
 
+    if redirect_enabled:
+        return redirect(url_for('admin.user_management'))
+
     return redirect(url_for('admin.user_management'))
+
+
+@admin_bp.route('/apply_bulk_actions', methods=['POST'])
+@login_required
+@require_admin
+def apply_bulk_actions():
+    selected_user_ids = request.form.getlist('selected_users')
+    action = request.form.get('action')
+
+    if not selected_user_ids:
+        flash('No users selected.', 'error')
+        return redirect(url_for('admin.user_management'))
+
+    if action == 'toggle_message':
+        for user_id in selected_user_ids:
+            toggle_message_permission(user_id, redirect_enabled=False)
+    elif action == 'remove_users':
+        for user_id in selected_user_ids:
+            remove_user(user_id, redirect_enabled=False)
+    elif action == 'cycle_ip_mapping':
+        for user_id in selected_user_ids:
+            cycle_ip_mapping(user_id, redirect_enabled=False)
+    # ... handle other actions ...
+
+    flash('Bulk actions applied successfully.', 'success')
+    return redirect(url_for('admin.user_management'))
+
+@admin_bp.route('/cycle_ip_mapping/<int:user_id>', methods=['POST'])
+@login_required
+@require_admin
+def cycle_ip_mapping(user_id, redirect_enabled=True):
+    user = User.query.get_or_404(user_id)
+    
+    all_ip_ids = [ip.id for ip in IPLocation.query.all()]
+    current_mappings = set([ip.id for ip in user.ip_locations])
+    all_combinations = sum([list(itertools.combinations(all_ip_ids, i)) for i in range(len(all_ip_ids) + 1)], [])
+    
+    # Find the index of the current combination
+    current_index = next((idx for idx, comb in enumerate(all_combinations) if set(comb) == current_mappings), -1)
+    
+    # Calculate the index of the next combination
+    next_index = (current_index + 1) % len(all_combinations)
+    
+    # Update the user's IP mappings
+    user.ip_locations = [IPLocation.query.get(ip_id) for ip_id in all_combinations[next_index]]
+    db.session.commit()
+    
+    flash('User IP mapping updated successfully.', 'success')
+
+    if redirect_enabled:
+        return redirect(url_for('admin.user_management'))
+
+    return None  # Or an appropriate response when redirect is disabled
 
 
 ## TERM DATES MANAGEMENT ##
@@ -362,36 +420,22 @@ def delete_term_date(term_date_id):
 @admin_bp.route('/set_message/<int:lab_location_id>', methods=['GET', 'POST'])
 @login_required
 def set_message(lab_location_id):
-    # Check if the user has permission to set messages
-    if not current_user.can_set_message:
-        flash('You do not have permission to set messages.', 'error')
-        return redirect(url_for('admin.admin_dashboard'))  # Redirect them to the landing page or another error page.
-
     form = MessageForm()
-    logout_form = LogoutForm()
-    # Query for the existing messages for this lab location
-    existing_messages = LabMessage.query.filter_by(lab_location_id=lab_location_id).all()
+    form.lab_location_id.choices = [(loc.id, loc.location_name) for loc in IPLocation.query.all()]
 
     if form.validate_on_submit():
-        # Define the tags and attributes that you want to allow
-        allowed_tags = ['a', 'img', 'p', 'br', 'strong', 'em', 'ul', 'li', 'ol']
-        allowed_attrs = {
-            'a': ['href', 'title', 'target', 'rel'],  # 'target' and 'rel' attributes are useful for links
-            'img': ['src', 'alt', 'width', 'height'],  # You can also allow width and height if needed
-        }
-
-        # Sanitize the HTML content
-        cleaned_content = clean(form.content.data, tags=allowed_tags, attributes=allowed_attrs)
-
-        # Now you can save cleaned_content to the database
-        message = LabMessage(content=cleaned_content, lab_location_id=lab_location_id, user_id=current_user.id)
+        message = LabMessage(
+            content=form.content.data,
+            lab_location_id=form.lab_location_id.data,
+            user_id=current_user.id
+        )
         db.session.add(message)
         db.session.commit()
         flash('Your message has been posted.', 'success')
-        return redirect(url_for('admin.admin_dashboard'))  # Redirect to the index or another appropriate page
-    else:
-        # If it's a GET request or form validation fails, render the set_message.html template
-        return render_template('set_message.html', form=form, existing_messages=existing_messages, logout_form = logout_form, lab_location_id=lab_location_id)
+        return redirect(url_for('admin.admin_dashboard'))
+
+    lab_locations = IPLocation.query.all()
+    return render_template('set_message.html', form=form, lab_locations=lab_locations)
 
 
 @admin_bp.route('/delete_message/<int:message_id>', methods=['POST'])
@@ -412,7 +456,7 @@ def delete_message(message_id):
 @admin_bp.route('/toggle_message_permission/<int:user_id>', methods=['POST'])
 @login_required
 @require_admin
-def toggle_message_permission(user_id):
+def toggle_message_permission(user_id, redirect_enabled=True):
     try:
         current_app.logger.info(f"Attempting to toggle message permission for user ID: {user_id}")
         user = User.query.get(user_id)
@@ -429,6 +473,10 @@ def toggle_message_permission(user_id):
         current_app.logger.error(f"Error toggling message permission for user ID {user_id}: {e}", exc_info=True)
         db.session.rollback()
         flash(f'Error toggling message permission: {e}', 'error')
+
+    if redirect_enabled:
+        return redirect(url_for('admin.user_management'))
+    
     return redirect(url_for('admin.user_management'))
 
 
@@ -495,29 +543,26 @@ def ip_management():
                            logout_form=logout_form, ip_mappings=IPLocation.query.all())
 
 
-# Function to update IP mapping location to an admin
 @admin_bp.route('/update_user_ip_mapping/<int:user_id>', methods=['POST'])
 @login_required
 @require_admin
 def update_user_ip_mapping(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        flash('User not found.', 'error')
-        return redirect(url_for('admin.user_management'))
-
-    new_ip_location_id = request.form.get('ip_mapping_id')
-    if new_ip_location_id:
-        # Ensure the new ID is either a valid ID or an empty string which is intended to unset the mapping.
-        new_ip_location = IPLocation.query.get(new_ip_location_id)
-        if new_ip_location or new_ip_location_id == '':
-            user.ip_location_id = new_ip_location_id if new_ip_location else None
-            db.session.commit()
-            flash('User IP mapping updated successfully.', 'success')
-        else:
-            flash('Invalid IP location ID.', 'error')
-    else:
-        flash('No IP mapping selected.', 'error')
-
+    user = User.query.get_or_404(user_id)
+    
+    # Get all IP mappings
+    ip_mappings = [None] + [ip.id for ip in IPLocation.query.all()]
+    
+    # Find current mapping index
+    current_index = ip_mappings.index(user.ip_location_id) if user.ip_location_id in ip_mappings else -1
+    
+    # Calculate next index
+    next_index = (current_index + 1) % len(ip_mappings)
+    
+    # Update user's IP mapping
+    user.ip_location_id = ip_mappings[next_index]
+    db.session.commit()
+    
+    flash('User IP mapping updated successfully.', 'success')
     return redirect(url_for('admin.user_management'))
 
 

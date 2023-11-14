@@ -2,6 +2,7 @@ from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from werkzeug.middleware.proxy_fix import ProxyFix
 from app.auth import auth_bp
 from app.admin import admin_bp, create_admin, start_scheduler, setup_logging
 from app.main import main_bp
@@ -25,6 +26,8 @@ start_scheduler()
 
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
+    
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_proto=1, x_port=1)
 
     app.run(ssl_context='adhoc')   # The ssl_context='adhoc' is for demo purposes. Use proper SSL in production.
 

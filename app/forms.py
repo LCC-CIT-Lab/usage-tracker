@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, SelectField, SubmitField, HiddenField, PasswordField, TextAreaField
+from wtforms import RadioField, StringField, SelectField, SubmitField, HiddenField, PasswordField, TextAreaField
 from wtforms.validators import ValidationError, DataRequired, InputRequired, IPAddress, Optional
 from wtforms.fields import DateField
 from app.models import SignInData
@@ -17,10 +17,11 @@ class LandingForm(FlaskForm):
 
 class SignInForm(FlaskForm):
     l_number = StringField('L Number', validators=[DataRequired()], render_kw={'readonly': True})
-    class_selected = SelectField('Class', coerce=str, validators=[DataRequired()], choices=[])
+    class_selected = RadioField('Class', coerce=str, validators=[DataRequired()], choices=[])
 
     def __init__(self, *args, **kwargs):
         super(SignInForm, self).__init__(*args, **kwargs)
+        self.class_selected.choices = []  # Initialize with empty list
 
 
 class SignOutForm(FlaskForm):
@@ -79,7 +80,9 @@ class TermDatesForm(FlaskForm):
 
 
 class MessageForm(FlaskForm):
+    lab_location_id = SelectField('Lab Location', coerce=int)
     content = TextAreaField('Message', validators=[DataRequired()])
     submit = SubmitField('Post Message')
+
 
 # ... Add other form classes as needed

@@ -3,7 +3,8 @@ DEFAULT_ADMIN_PASSWORD = "p"
 DEFAULT_ADMIN_USERNAME = "a"
 DEFAULT_ADMIN_EMAIL = "pass@a.edu"
 SECRET_KEY = "hashedkeyhashedkeyhashedkey"
-SESSION_COOKIE_SECURE = true
+SESSION_COOKIE_SECURE = false
+SESSION_COOKIE_NAME = "sdgsd"
 
 [smtp]
 ACCOUNT = "myapp"

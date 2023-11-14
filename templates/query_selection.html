@@ -30,8 +30,9 @@
         {% endwith %}
 
         <div class="dashboard-header">
-            <h2>Query Selection</h2>
-
+            <div class="dashboard-header-signin">
+                <h2>Query Selection</h2>
+            </div>
             <form method="post"><br><br>
                 {{ form.hidden_tag() }}
                 <div class="form-group">
@@ -69,7 +70,9 @@
             <br><br><br>
             <div class="button-container">
                 <!-- Back Button -->
-                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                <div>
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                </div>
                 <!-- Logout Button -->
                 <div>
                     <form action="{{ url_for('auth.logout') }}" method="post">

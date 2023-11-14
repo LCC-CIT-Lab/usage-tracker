@@ -7,6 +7,10 @@ import logging, sys
 
 db = SQLAlchemy()
 
+user_ip_mapping = db.Table('user_ip_mapping',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('ip_location_id', db.Integer, db.ForeignKey('ip_location.id'), primary_key=True)
+)
 
 class SignInData(db.Model):
     # Database model for SignInData
@@ -31,7 +35,8 @@ class User(UserMixin, db.Model):
     can_set_message = db.Column(db.Boolean, default=False)
     can_access_query_selection = db.Column(db.Boolean, default=False)
     ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
-    ip_location = db.relationship('IPLocation', backref='users', lazy=True)
+    ip_locations = db.relationship('IPLocation', secondary=user_ip_mapping, lazy='subquery',
+                                   backref=db.backref('mapped_users', lazy=True))
 
     def set_password(self, password):
         self.hashed_password = generate_password_hash(password)
@@ -48,6 +53,12 @@ class IPLocation(db.Model):
     sign_ins = db.relationship('SignInData', backref='ip_location', lazy='dynamic')
     def __repr__(self):
         return f'<IPLocation {self.ip_address} - {self.location_name}>'
+
+
+class UserIPLocation(db.Model):
+    __tablename__ = 'user_ip_location'
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), primary_key=True)
+    ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'), primary_key=True)
 
 
 class TermDates(db.Model):

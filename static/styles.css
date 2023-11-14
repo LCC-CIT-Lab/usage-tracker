@@ -54,13 +54,14 @@ h3 {text-align: center;}
     list-style: none;
     padding: 0;
     margin-bottom: 20px;
+    text-align: left;
 }
 .dashboard-menu li {
     margin-bottom: 10px;
 }
 .dashboard-menu a {
     text-decoration: none;
-    color: #5cb85c;
+    color: #4652f9;
 }
 .dashboard-menu a:hover {
     text-decoration: underline;
@@ -101,6 +102,15 @@ form {
     border-radius: 4px;
     box-sizing: border-box; /* Include padding and border in the width */
 }
+.form-control-signin {
+    flex-grow: 1; /* Allows the input or content to take up the remaining space */
+    align-items: center; /* This will vertically center align the items if they have different heights */
+    justify-content: space-between; /* This will create space between the label and the input or content */
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box; /* Include padding and border in the width */
+}
 #password {
     width: 100%; /* Ensure it matches the width of other input fields */
     padding: 10px;
@@ -108,32 +118,36 @@ form {
     border-radius: 4px;
     box-sizing: border-box;
 }
-/* If you want to ensure that the label and the content are aligned to their respective sides */
-.form-group > *:first-child { 
-    margin-right: auto; 
-}
 .button-container {
     display: flex;
-    margin-top: 20px;
-    justify-content: space-between; /* Keeps buttons at opposite ends */
+    justify-content: space-between; /* Distribute space evenly between buttons */
+    align-items: center; /* Align buttons vertically */
     position: absolute;
-    width: calc(100% - 40px); /* Width is the container's width minus padding */
-    bottom: 20px; /* Distance from the bottom of the container */
+    width: calc(100% - 40px); /* Adjust width as needed */
+    bottom: 40px; /* Distance from the bottom of the container */
     left: 20px; /* Aligns with the padding of the container */
-    padding: 0; /* Resets any padding that might affect alignment */
+    padding: 0;
+}
+.button-container > div {
+    flex-basis: 33%; /* Each child div takes up a third of the container */
+    text-align: center; /* Center-align the content inside each div */
 }
 .button-containerdashboard {
     display: flex;
-    margin-top: 20px;
-    justify-content: center; /* Keeps buttons at opposite ends */
+    justify-content: right; /* Distribute space evenly between buttons */
+    align-items: center; /* Align buttons vertically */
     position: absolute;
-    width: calc(100% - 40px); /* Width is the container's width minus padding */
-    bottom: 20px; /* Distance from the bottom of the container */
+    width: calc(100% - 40px); /* Adjust width as needed */
+    bottom: 40px; /* Distance from the bottom of the container */
     left: 20px; /* Aligns with the padding of the container */
-    padding: 0; /* Resets any padding that might affect alignment */
+    padding: 0;
+}
+.button-containerdashboard > div {
+    flex-basis: 33%; /* Each child div takes up a third of the container */
+    text-align: center; /* Center-align the content inside each div */
 }
 .button, input[type='submit'] {
-    padding: 10px 0px; /* Uniform padding for all buttons */
+    padding: 10px 30px; /* Uniform padding for all buttons */
     font-size: 16px;
     border-radius: 5px;
     border: none;
@@ -151,6 +165,7 @@ form {
 .buttonsignout {
     padding: 10px 0px; /* Uniform padding for all buttons */
     font-size: 16px;
+    margin-right: 20px; /* Provides some space between the label and the input or content */
     border-radius: 5px;
     border: none;
     background-color: #e01010;
@@ -307,4 +322,8 @@ form {
     width: 50%;
     padding: 10px;
     margin-top: 10px;
+}
+.radio {
+    margin-bottom: 10px; /* Adjust the space as needed */
+    display: block; /* This will ensure each radio button is on its own line */
 }
