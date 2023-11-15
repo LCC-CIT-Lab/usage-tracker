@@ -12,6 +12,11 @@ itsdangerous~=2.1.2
 email-validator==1.2.1
 bleach==6.1.0
 APScheduler==3.10.4
+fs.sshfs==1.0.2
+fs~=2.4.16
+alembic~=1.12.1
+SQLAlchemy~=2.0.22
 fs==2.4.16
 fs.sshfs==1.0.2
 flask_paginate==2023.10.24
+paramiko~=3.3.1

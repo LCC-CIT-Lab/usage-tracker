@@ -15,7 +15,8 @@ SQLALCHEMY_DATABASE_URI = "sqlite:///attendance.db"
 DEBUG = true
 
 [sshfs]
-REMOTE_TSV_PATH = "/data"
+REMOTE_TSV_PATH = "/data/"
 HOST = "nlms.lanecc.edu"
 USER = "app"
+PORT = 22
 PRIVATE_KEY_PATH = "app_keys/id_rsa"

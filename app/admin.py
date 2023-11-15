@@ -65,7 +65,7 @@ def sign_out_task():
 def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=delete_old_logs, trigger="cron", hour=1, minute=0)
-    scheduler.add_job(func=sign_out_task, trigger='cron', hour=1, minute=0)
+    scheduler.add_job(func=sign_out_task, trigger='cron', hour=16, minute=36)
     scheduler.start()
 
 
@@ -421,6 +421,7 @@ def delete_term_date(term_date_id):
 @login_required
 def set_message(lab_location_id):
     form = MessageForm()
+    logout_form = LogoutForm()  # Ensure logout_form is instantiated
     form.lab_location_id.choices = [(loc.id, loc.location_name) for loc in IPLocation.query.all()]
 
     if form.validate_on_submit():
@@ -435,7 +436,7 @@ def set_message(lab_location_id):
         return redirect(url_for('admin.admin_dashboard'))
 
     lab_locations = IPLocation.query.all()
-    return render_template('set_message.html', form=form, lab_locations=lab_locations)
+    return render_template('set_message.html', form=form, logout_form=logout_form, lab_locations=lab_locations)
 
 
 @admin_bp.route('/delete_message/<int:message_id>', methods=['POST'])

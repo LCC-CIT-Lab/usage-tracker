@@ -8,12 +8,16 @@ from app.models import db, SignInData, IPLocation, TermDates, LabMessage
 from app.forms import LandingForm, LogoutForm, SignInForm, SignOutForm, LoginForm, CSRFProtectForm
 from .config import load_config
 from fs.sshfs import SSHFS
+from fs import open_fs
+from fs.errors import CreateFailed
 from paramiko import util
 
 import subprocess
 import os
 import logging
 import csv
+import fs
+import paramiko
 
 main_bp = Blueprint('main', __name__)
 
@@ -35,6 +39,7 @@ def validate_csrf_token(token, secret_key, max_age=3600):
         return True
     except BadSignature:
         return False
+
 
 @main_bp.route('/', methods=['GET', 'POST'])
 def landing():
@@ -63,14 +68,15 @@ def landing():
         session['l_number'] = l_number
 
         # Additional logging to trace the flow
-        print("Redirecting to chooseSignout")
-        return chooseSignout(l_number, lab_id)
+        print("Redirecting to choosesignout")
+        return choosesignout(l_number, lab_id)
 
     # Additional logging for default return
     print("Rendering landing page template")
     return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages)
 
-def chooseSignout(l_number, lab_id):
+
+def choosesignout(l_number, lab_id):
     try:
         # Check if student is already signed in today
         today = datetime.now().date()
@@ -101,6 +107,7 @@ def chooseSignout(l_number, lab_id):
         current_app.logger.error(f'Error signing out: {e}')
         return handle_student_sign_in(l_number, lab_id)
 
+
 def is_valid_lab_id(lab_id):
     try:
         int(lab_id)
@@ -123,6 +130,25 @@ def handle_student_sign_in(l_number, lab_id):
     classes = get_student_classes(l_number)
     classes_param = ",".join(classes)  # Join class names with a comma
     return redirect(url_for('main.sign_in', l_number=l_number, lab_id=lab_id, classes=classes_param))
+
+
+def create_sshfs():
+    try:
+        current_app.logger.debug("Loading private key for SSHFS.")
+        pkey = paramiko.RSAKey.from_private_key_file(config['sshfs']['PRIVATE_KEY_PATH'])
+
+        current_app.logger.debug("Creating SSHFS instance.")
+        sshfs = SSHFS(
+            host=config['sshfs']['HOST'],
+            user=config['sshfs']['USER'],
+            pkey=pkey,
+            port=config['sshfs']['PORT'],
+        )
+        current_app.logger.debug("SSHFS instance created successfully.")
+        return sshfs
+    except Exception as e:
+        current_app.logger.exception("SSHFS connection error")
+        return None
 
 
 @main_bp.route('/sign-in', methods=['GET', 'POST'])
@@ -230,34 +256,25 @@ def process_sign_out(l_number, comment):
 
 def student_exists(l_number):
     """Check if the student exists in the TSV file."""
-    
-    # Try to read from the local file first
+    local_file_path = 'zsrsinf_cit.txt'
     try:
-        with open('zsrslst_cit.txt', 'r') as file:
+        # Try reading the file locally
+        with open(local_file_path, 'r') as file:
             reader = csv.reader(file, delimiter='\t')
-            for row in reader:
-                if l_number == row[0]:
-                    return True
+            return any(l_number == row[0] for row in reader)
     except FileNotFoundError:
-        current_app.logger.error('Local file zsrslst_cit.txt not found, trying SSHFS')
+        current_app.logger.error(f'Local file {local_file_path} not found, trying SSHFS')
 
-    # If local file is not found, try SSHFS
-    if os.path.exists(config['sshfs']['PRIVATE_KEY_PATH']):
+    # SSHFS part
+    sshfs = create_sshfs()
+    if sshfs is not None:
         try:
-            with SSHFS(
-                host=config['sshfs']['HOST'],
-                user=config['sshfs']['USER'],
-                pkey=config['sshfs']['PRIVATE_KEY_PATH'],
-                port=22
-            ) as sshfs:
-                tsv_file_path = config['sshfs']['REMOTE_TSV_PATH'] + '/zsrslst_cit.txt'
-                if sshfs.exists(tsv_file_path):
-                    with sshfs.open(tsv_file_path, 'r') as file:
-                        reader = csv.reader(file, delimiter='\t')
-                        return any(l_number == row[0] for row in reader)
+            with sshfs.open(os.path.join(config['sshfs']['REMOTE_TSV_PATH'], local_file_path), 'r') as file:
+                reader = csv.reader(file, delimiter='\t')
+                return any(l_number == row[0] for row in reader)
         except Exception as e:
-            current_app.logger.error(f"SSHFS error: {e}")
-    
+            current_app.logger.error(f"Error reading file over SSHFS: {e}")
+
     return False
 
 
@@ -278,6 +295,7 @@ def get_lab_info(ip_address):
         return ip_location.location_name, ip_location.id
     return "Unknown Location", None
 
+
 def get_lab_name(ip_address):
     """Retrieve lab location based on the user's IP address."""
     ip_location = IPLocation.query.filter_by(ip_address=ip_address).first()
@@ -285,9 +303,11 @@ def get_lab_name(ip_address):
         return ip_location.location_name
     return "Unknown Location"
 
+
 def student_signed_in_today(l_number):
     """Check if the student is already signed in today."""
     return get_student_today(l_number) is not None
+
 
 def process_sign_in(l_number, lab_location_name, class_selected, lab_id):
     """Process the student's sign-in."""
@@ -301,6 +321,7 @@ def process_sign_in(l_number, lab_location_name, class_selected, lab_id):
     db.session.add(sign_in_data)
     db.session.commit()
 
+
 def handle_existing_sign_in(l_number):
     """Handle the case where the student is already signed in."""
     student_today = get_student_today(l_number)
@@ -310,12 +331,14 @@ def handle_existing_sign_in(l_number):
         flash('You have already signed in today. Signing you out.')
     return redirect(url_for('main.sign_out', l_number=l_number))
 
+
 def handle_sign_in_error(e):
     """Handle errors that occur during sign-in."""
     db.session.rollback()
     current_app.logger.error(f'Error signing in: {e}')
     flash('An error occurred while signing in.', 'error')
     return redirect(url_for('main.landing'))
+
 
 def redirect_with_flash(message, category, endpoint):
     """Redirect to a given endpoint with a flashed message."""
@@ -327,61 +350,57 @@ def get_student_classes(l_number):
     """Retrieve the classes a student is enrolled in."""
     class_ids = []
     classes = []
+    local_file_path = 'zsrslst_cit.txt'
+    local_file_path_classes = 'zsrsecl_cit.txt'
+    sshfs = create_sshfs()
 
-    # Fallback to local files if SSHFS fails or is not available
     try:
-        with open('zsrslst_cit.txt', 'r') as file:
+        # Read student's class IDs from local file
+        with open(local_file_path, 'r') as file:
             reader = csv.reader(file, delimiter='\t')
             for row in reader:
                 if l_number.strip('"') == row[0].strip('"'):
                     class_ids.append(row[1].strip('"'))
 
-        with open('zsrsecl_cit.txt', 'r') as file:
+        # Read class names from local file
+        with open(local_file_path_classes, 'r') as file:
             reader = csv.reader(file, delimiter='\t')
             for row in reader:
                 if row[1].strip('"') in class_ids:
                     class_name = f"{row[2]} {row[3]}: {row[4]}"
                     classes.append(class_name)
+    except FileNotFoundError:
+        current_app.logger.error(f'Local file {local_file_path} or {local_file_path_classes} not found, trying SSHFS')
 
-    except FileNotFoundError as e:
-        current_app.logger.error(f"Local file not found: {e}")
-        return []
+        sshfs = create_sshfs()
+        if sshfs is not None:
+            try:
+                # SSHFS part for class IDs
+                with sshfs.open(os.path.join(config['sshfs']['REMOTE_TSV_PATH'], local_file_path), 'r') as file:
+                    reader = csv.reader(file, delimiter='\t')
+                    for row in reader:
+                        if l_number.strip('"') == row[0].strip('"'):
+                            class_ids.append(row[1].strip('"'))
 
-    # Fallback to SSHFS if local files are not found
-    if os.path.exists(config['sshfs']['PRIVATE_KEY_PATH']):
-        try:
-            with SSHFS(
-                host=config['sshfs']['HOST'],
-                user=config['sshfs']['USER'],
-                pkey=config['sshfs']['PRIVATE_KEY_PATH']
-            ) as sshfs:
-                # Read from SSHFS if available
-                if sshfs.exists('/data/zsrsinf_cit.txt'):
-                    with sshfs.open('/data/zsrsinf_cit.txt', 'r') as file:
-                        reader = csv.reader(file, delimiter='\t')
-                        for row in reader:
-                            if l_number.strip('"') == row[0].strip('"'):
-                                class_ids.append(row[1].strip('"'))
-
-                if sshfs.exists('/data/zsrsecl_cit.txt'):
-                    with sshfs.open('/data/zsrsecl_cit.txt', 'r') as file:
-                        reader = csv.reader(file, delimiter='\t')
-                        for row in reader:
-                            if row[1].strip('"') in class_ids:
-                                class_name = f"{row[2]} {row[3]}: {row[4]}"
-                                classes.append(class_name)
-        except Exception as e:
-            current_app.logger.error(f"SSHFS error: {e}")
+                # SSHFS part for class names
+                with sshfs.open(os.path.join(config['sshfs']['REMOTE_TSV_PATH'], local_file_path_classes), 'r') as file:
+                    reader = csv.reader(file, delimiter='\t')
+                    for row in reader:
+                        if row[1].strip('"') in class_ids:
+                            class_name = f"{row[2]} {row[3]}: {row[4]}"
+                            classes.append(class_name)
+            except Exception as e:
+                current_app.logger.error(f"Error reading file over SSHFS: {e}")
+                return []
 
     return list(set(classes))
-
 
 
 @main_bp.route('/download_csv/<filename>')
 def download_csv(filename):
     # Make sure the filename is safe to open
     if not os.path.basename(filename) == filename:
-        abort(400, "Invalid filename")
+        redirect("400.html", 400)
 
     csv_path = os.path.join('/tmp', filename)
     if os.path.exists(csv_path):
