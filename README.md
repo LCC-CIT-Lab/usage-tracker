@@ -1,13 +1,21 @@
-
 # Project Title: Online Lab Attendance System
 
 ## Overview
 
-This Flask-based web application serves as a comprehensive system for tracking lab attendance, providing functionalities for user sign-in and sign-out, user authentication, data management, and administrative features. The system is designed to handle secure data processing, messaging, encryption, and email functionalities within an educational setting.
+This Flask-based web application provides a sophisticated platform for managing lab attendance in educational institutions. It features robust functionalities including user sign-in/out, authentication, data management, IP mapping, message setting, and comprehensive admin controls. The system is adept at secure data processing, encryption, emailing, and offers a detailed logging mechanism.
+
+## Key Features
+
+- Student sign-in/out with lab session tracking.
+- Admin dashboard for user and data management.
+- IP mapping for lab locations.
+- Secure messaging system for lab announcements.
+- Extensive error handling and data encryption.
+- Email functionalities for query and notifications.
 
 ## Getting Started
 
-These instructions will guide you through setting up the project locally for development and testing purposes.
+These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
 ### Prerequisites
 
@@ -15,10 +23,11 @@ These instructions will guide you through setting up the project locally for dev
 - Flask
 - Pip (Python package installer)
 - Virtual environment (recommended)
+- SQLite/PostgreSQL
 
 ### Installation
 
-Follow these steps to set up your project:
+To set up the project:
 
 1. Clone the repository:
    ```sh
@@ -27,13 +36,13 @@ Follow these steps to set up your project:
 
 2. Navigate to the project directory:
    ```sh
-   cd yourproject
+   cd online-lab-attendance-system
    ```
 
 3. Set up a virtual environment and activate it:
    ```sh
    python -m venv venv
-   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   source venv/bin/activate  # On Windows use `venv\Scriptsctivate`
    ```
 
 4. Install the required dependencies:
@@ -41,90 +50,86 @@ Follow these steps to set up your project:
    pip install -r requirements.txt
    ```
 
-5. Initialize the database:
+5. Initialize and migrate the database:
    ```sh
    flask db init
    flask db migrate
    flask db upgrade
    ```
 
-6. Run the server:
+6. Run the Flask server:
    ```sh
    flask run
    ```
 
 ## Project Structure
 
-### app.py
+### Backend
 
-Handles the user interface logic, data processing, messaging, encryption, and email functionalities.
+- `app.py`: Core application setup, routes, and logic.
+- `models.py`: Database models for users, sign-in data, IP locations, messages, and logs.
+- `admin.py`: Administrative functionalities and backend logic.
 
-### Routes
+### Frontend
 
-- **Landing**: The entry point where students enter their L number to sign in or sign out.
-- **Sign-in**: Allows students to sign in for a session by selecting their lab location and class.
-- **Sign-out**: Enables students to sign out and submit optional comments.
-- **Query Login**: A secure access point for querying attendance data via authorized email addresses.
-- **Query Selection**: Allows extraction and viewing of class data within selected date ranges.
-- **Query Error**: Displays errors related to login or data selection.
+- `templates`: HTML templates for UI rendering.
+- `static`: CSS and JavaScript files for styling and interactive features.
 
-### Templates
+### Main Functionalities
 
-Contains HTML templates for rendering the web interface, including sign-in/out forms, admin dashboard, user management, and error pages.
-
+- **User Authentication**: Secure login/logout for students and administrators.
+- **Attendance Tracking**: Students can sign in/out of labs, with their attendance time recorded.
+- **Admin Dashboard**: Administrators can manage users, IP mappings, messages, and view logs.
+- **Data Management**: Query and download attendance data, manage term dates, and send emails.
+- **Message Board**: Administrators can post messages for specific lab locations.
+- **IP Mapping**: Associate lab locations with specific IP addresses for accurate tracking.
 
 ## Configurations
 
-Configurations are managed through `config.toml`, which includes database setup, SMTP settings, and application secrets.
+The application's configuration, including database setup, SMTP settings, and encryption keys, is managed through `config.toml`.
 
-## Technologies
+## Technologies Used
 
-- Flask for the web framework.
-- SQLAlchemy for database interactions.
-- SQLite/PostgreSQL as the database system.
-- Jinja2 for templating.
-- WTForms for form handling.
+- Flask: Python web framework.
+- SQLAlchemy: ORM for database interactions.
+- SQLite/PostgreSQL: Database systems.
+- Jinja2: Templating engine.
+- WTForms: Form handling.
+- Cryptography: Secure token handling and encryption.
 
 ## Dependencies
 
-Dependencies are listed in the `requirements.txt` file and include third-party libraries such as Flask-Login, Flask-WTF, and Cryptography.
+Listed in `requirements.txt`, including Flask extensions like Flask-Login, Flask-WTF, Flask-SQLAlchemy, and others for security and functionality.
 
-## Third Party Libraries
+## Third-Party Libraries
 
 - Flask-Login: User session management.
-- Flask-WTF: Form handling and validation.
-- Cryptography: Encryption for secure token handling.
-- msmtp: - Client for sending e-mail
+- Flask-WTF: Forms and CSRF protection.
+- Cryptography: Encryption and secure token management.
+- msmtp: Email client for sending notifications and queries.
 
-## About
+## About the Project
 
-Lab Attendance Website is an initiative by LCC-CIT-Lab to provide a secure and straightforward way for users to log-in to labs around campus. The project is open for contributions and welcomes feedback.
+Developed by LCC-CIT-Lab, this project aims to streamline lab attendance management and ensure secure and efficient operations within educational settings. The system is open-source and welcomes contributions and feedback.
 
 ## Contact
 
 - GitHub: @LCC-CIT-Lab
 - Email: CITLab@lanecc.edu
 
-## Additional Details
+## Additional Features and To-Dos
 
-### Database
+### Upcoming Features
 
-The application uses SQLite with SQLAlchemy. It includes tables for SignInData and User Management.
+- More detailed statistics on lab usage (`more_statistics.html`).
+- Gamification elements for student engagement (`gamification.html`).
+- Instructor module for class and attendance management (`instructor.html`).
 
-### Error Handling
+### To-Dos
 
-Comprehensive error handling is in place for scenarios such as missing L numbers, database errors, failed logins, encryption issues, and email sending failures.
-
-### Email Configuration
-
-SMTP settings are configured through `config.toml`, and utility functions for sending emails are provided.
-
-### Encryption
-
-Fernet encryption is used for token generation and validation, with tokens expiring daily.
-
-## To Do
-
-- Implement IP address-based building selection.
-- Further error handling improvements.
-- Additional user management features.
+- Implement flash message timeout on `admin_dashboard.html`.
+- Auto-fill dates in `query_selection.html` when selecting a term date range.
+- CSV file upload for term date management in `term_management.html`.
+- Redirect post message to the same page in `set_message.html`.
+- Scheduled cron jobs for log deletion and auto sign-out.
+- Implement logout form as a Flask-WTForms component.
