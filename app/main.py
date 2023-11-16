@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, render_template, request, redirect, url_fo
 from flask_login import login_required, current_user
 from flask_wtf.csrf import generate_csrf, validate_csrf
 from itsdangerous import URLSafeTimedSerializer, BadSignature
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 from email.mime.text import MIMEText
 from app.models import db, SignInData, IPLocation, TermDates, LabMessage
 from app.forms import LandingForm, LogoutForm, SignInForm, SignOutForm, LoginForm, CSRFProtectForm
@@ -11,6 +11,8 @@ from fs.sshfs import SSHFS
 from fs import open_fs
 from fs.errors import CreateFailed
 from paramiko import util
+from sqlalchemy import func, case, and_, or_
+
 
 import subprocess
 import os
@@ -18,10 +20,15 @@ import logging
 import csv
 import fs
 import paramiko
+import logging
 
 main_bp = Blueprint('main', __name__)
 
 config = load_config()
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Configure the logging level for Paramiko to DEBUG
 util.log_to_file('paramiko.log', level=5)
@@ -58,54 +65,51 @@ def landing():
 
     message = get_latest_lab_message(lab_id) if lab_location else None
 
+    # Calculate stats for every render_template call
+    stats = get_student_stats(lab_id) if lab_id else None
+    
     if form.validate_on_submit():
-        l_number = normalize_l_number(form.l_number.data)
+        # Obtain l_number directly from the form data
+        l_number = form.l_number.data
 
+        # Check for 'admin' input
+        if l_number.lower() == "admin":
+            return redirect(url_for('auth.login'))
+
+        # Normalize l_number
+        l_number = normalize_l_number(l_number)
+
+        # Check if it's a valid student L number
         if not student_exists(l_number):
             flash('Invalid L number, please sign-in again.')
-            return redirect(url_for('main.landing', lab_id=lab_id))
+            return redirect(url_for('main.landing', lab_id=lab_id, stats=stats))
 
+        # Proceed if valid student L number
         session['l_number'] = l_number
 
-        # Additional logging to trace the flow
-        print("Redirecting to choosesignout")
-        return choosesignout(l_number, lab_id)
-
-    # Additional logging for default return
-    print("Rendering landing page template")
-    return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages)
+        action = choosesignout(l_number, lab_id)
+        if action == 'sign_out':
+            return redirect(url_for('main.sign_out', l_number=l_number))
+        else:
+            return redirect(url_for('main.sign_in', l_number=l_number))
+        
+    return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages, stats=stats)
 
 
 def choosesignout(l_number, lab_id):
-    try:
-        # Check if student is already signed in today
-        today = datetime.now().date()
-        student_entries_today = SignInData.query.filter_by(l_number=l_number).all()
+    # Check if student is already signed in today
+    today = datetime.now().date()
+    student_entries_today = SignInData.query.filter_by(l_number=l_number).all()
 
-        student_today = None
-        for entry in student_entries_today:
-            if entry.sign_in_timestamp.date() == today and not entry.sign_out_timestamp:
-                student_today = entry
+    student_today = None
+    for entry in student_entries_today:
+        if entry.sign_in_timestamp.date() == today and not entry.sign_out_timestamp:
+            student_today = entry
 
-        if student_today and not student_today.sign_out_timestamp:
-            student_today.sign_out_timestamp = datetime.now()
-            try:
-                db.session.commit()
-                current_app.logger.info('Student already signed in today. Signing them out.')
-            except Exception as e:
-                db.session.rollback()
-                current_app.logger.error(f'Error signing out: {e}')
-        
-            return redirect(url_for('main.sign_out', l_number=l_number)) 
-
-        else:
-            return redirect(url_for('main.sign_in')) 
-
-
-    except:
-        db.session.rollback()
-        current_app.logger.error(f'Error signing out: {e}')
-        return handle_student_sign_in(l_number, lab_id)
+    if student_today and not student_today.sign_out_timestamp:
+        return 'sign_out'
+    else:
+        return 'sign_in'
 
 
 def is_valid_lab_id(lab_id):
@@ -220,38 +224,96 @@ def sign_in():
 @main_bp.route('/sign-out', methods=['GET', 'POST'])
 def sign_out():
     form = SignOutForm()
-    l_number = form.l_number.data
+    l_number = request.args.get('l_number') or session.get('l_number')
     comment = form.comment.data
+    continue_without_comment = request.args.get('continue')  # Check if continue was clicked
 
-    if form.validate_on_submit():
-
-        if process_sign_out(l_number, comment):
-            flash('You have been signed out successfully.', 'success')
-        else:
-            flash('Error during sign out.', 'error')
-
+    # Ensure l_number is available
+    if not l_number:
+        flash('Error: L number missing.')
         return redirect(url_for('main.landing'))
-    else:
-        return render_template('sign_out.html', form=form, comment=comment, l_number=l_number)
+    
+    # Calculate daily time in lab
+    daily_time = calculate_daily_time_in_lab(l_number)
+
+    # Calculate total time in current term
+    total_term_time = calculate_total_term_time(l_number)
+
+    if continue_without_comment or form.validate_on_submit():
+        # This will handle both clicking continue and submitting the form
+        process_sign_out(l_number, form.comment.data if form.validate_on_submit() else "")
+        flash('Signed out successfully.')
+        session.pop('l_number', None)
+        return redirect(url_for('main.landing'))
+    
+    return render_template('sign_out.html', form=form, l_number=l_number, daily_time=daily_time, total_term_time=total_term_time)
 
 
 def process_sign_out(l_number, comment):
     sign_in_record = SignInData.query.filter_by(l_number=l_number, sign_out_timestamp=None).order_by(SignInData.sign_in_timestamp.desc()).first()
-    
-    send_comment_to_support(l_number, comment)
+    try:
+        send_comment_to_support(l_number, comment)
+    except Exception as e:
+        current_app.logger.error('Problem with sending comment to support')
 
     if sign_in_record:
+        current_app.logger.info(f"Found sign-in record for L number {l_number}. Attempting sign-out...")
         sign_in_record.sign_out_timestamp = datetime.now()
         sign_in_record.comments = comment
         try:
             db.session.commit()
             session.pop('l_number', None)
-            current_app.logger.info('User signed out')
+            current_app.logger.info('User signed out successfully')
             return True
         except Exception as e:
             db.session.rollback()
+            current_app.logger.error(f'Error during sign out for L number {l_number}: {e}')
             return False
-    return False
+    else:
+        current_app.logger.error(f"No sign-in record found for L number {l_number}")
+        return False
+
+
+@main_bp.route('/auto_sign_out')
+def auto_sign_out():
+    l_number = request.args.get('l_number')
+
+    if not l_number:
+        flash('Error: L number missing.')
+        return redirect(url_for('main.landing'))
+
+    # Process the sign-out
+    process_sign_out(l_number, "")
+    flash('Signed out automatically due to inactivity.')
+    session.pop('l_number', None)  # Clear the session
+
+    return redirect(url_for('main.landing'))
+
+
+def calculate_daily_time_in_lab(l_number):
+    today = datetime.now().date()
+    records = SignInData.query.filter(
+        SignInData.l_number == l_number,
+        db.func.date(SignInData.sign_in_timestamp) == today
+    ).all()
+    return sum(
+        ((record.sign_out_timestamp or datetime.now()) - record.sign_in_timestamp).total_seconds() / 3600
+        for record in records
+    )
+
+
+def calculate_total_term_time(l_number):
+    current_term = get_current_term()
+    if current_term:
+        records = SignInData.query.filter(
+            SignInData.l_number == l_number,
+            SignInData.sign_in_timestamp.between(current_term.start_date, current_term.end_date)
+        ).all()
+        return sum(
+            ((record.sign_out_timestamp or record.sign_in_timestamp) - record.sign_in_timestamp).total_seconds() / 3600
+            for record in records
+        )
+    return 0
 
 
 def student_exists(l_number):
@@ -476,3 +538,61 @@ def check_db():
     for entry in data:
         output += f"L Number: {entry.l_number}, Lab: {entry.lab_location}, Class: {entry.class_selected}, Sign In: {entry.sign_in_timestamp}, Sign Out: {entry.sign_out_timestamp}<br>"
     return output
+
+
+def get_current_term():
+    # Assuming TermDates model has start_date and end_date to define a term
+    current_date = datetime.now().date()
+    current_term = TermDates.query.filter(TermDates.start_date <= current_date, TermDates.end_date >= current_date).first()
+    return current_term
+
+
+def default_sign_out(sign_in_timestamp):
+    return datetime.combine(sign_in_timestamp.date(), time(16, 30))
+
+
+def get_student_stats(lab_id):
+    # Early return if no lab_id is provided
+    if not lab_id:
+        return None
+
+    current_term = get_current_term()
+    if not current_term:
+        return None
+
+    # Convert current_term.end_date to datetime at the end of the day (23:59:59)
+    term_end_datetime = datetime.combine(current_term.end_date, time(23, 59, 59))
+
+    sign_ins = SignInData.query.filter(
+        SignInData.sign_in_timestamp.between(current_term.start_date, term_end_datetime),
+        SignInData.ip_location_id == lab_id  # Filter by lab ID
+    ).all()
+
+    total_hours = round(
+        sum(
+            ((record.sign_out_timestamp or datetime.now()) - record.sign_in_timestamp).total_seconds() / 3600
+            for record in sign_ins
+        ), 2
+    )
+
+    # Calculate new and returning students count
+    student_counts = db.session.query(
+        SignInData.l_number,
+        func.count(SignInData.l_number).label('visit_count')
+    ).filter(
+        SignInData.sign_in_timestamp.between(current_term.start_date, current_term.end_date),
+        SignInData.ip_location_id == lab_id
+    ).group_by(SignInData.l_number).all()
+
+    single_visit_students_count = sum(1 for _, count in student_counts if count == 1)
+    returning_students_count = sum(1 for _, count in student_counts if count > 1)
+
+    ratio = returning_students_count / single_visit_students_count if single_visit_students_count else 0
+
+    return {
+        "total_hours": total_hours,
+        "single_visit_students_count": single_visit_students_count,
+        "returning_students_count": returning_students_count,
+        "ratio": ratio
+    }
+

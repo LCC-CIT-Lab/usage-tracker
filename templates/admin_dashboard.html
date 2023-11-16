@@ -32,7 +32,7 @@
                 <li>- <a href="{{ url_for('admin.view_logs') }}">View Logs</a></li>
                 {% endif %}
                 <li>
-                    {% if lab_location_id %}
+                    {% if current_user.can_set_message and lab_location_id %}
                     - <a href="{{ url_for('admin.set_message', lab_location_id=lab_location_id) }}">Set Message</a>
                     {% else %}
                     - <span>Set Message (Unavailable)</span>

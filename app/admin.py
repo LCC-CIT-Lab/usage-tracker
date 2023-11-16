@@ -236,12 +236,19 @@ def get_all_users():
 @login_required
 @require_admin
 def add_user():
+
+    # Debugging: Print the form data
+    print("Form Data Received:", request.form)
+
     username = request.form.get('username')
     email = request.form.get('email')
     password = request.form.get('password')
     is_admin = 'is_admin' in request.form
     can_set_message = 'can_set_message' in request.form
     can_access_query_selection = 'can_access_query_selection' in request.form
+
+    # Debugging: Check the value of can_set_message
+    print("Can Set Message:", can_set_message)
 
     if not (username and email and password):
         flash('Please enter all the required fields.', 'error')
@@ -260,6 +267,8 @@ def add_user():
         )
         new_user.set_password(password)
         try:
+            print("New User:", new_user)
+
             db.session.add(new_user)
             db.session.commit()
             flash('New user added successfully.', 'success')
@@ -340,6 +349,10 @@ def cycle_ip_mapping(user_id, redirect_enabled=True):
     
     # Update the user's IP mappings
     user.ip_locations = [IPLocation.query.get(ip_id) for ip_id in all_combinations[next_index]]
+
+    # Enable/disable message permission based on IP mapping
+    user.can_set_message = bool(user.ip_locations)
+    
     db.session.commit()
     
     flash('User IP mapping updated successfully.', 'success')
@@ -420,9 +433,13 @@ def delete_term_date(term_date_id):
 @admin_bp.route('/set_message/<int:lab_location_id>', methods=['GET', 'POST'])
 @login_required
 def set_message(lab_location_id):
+    if not current_user.can_set_message:
+        flash('You do not have permission to set messages.', 'error')
+        return redirect(url_for('admin.admin_dashboard'))
+
     form = MessageForm()
     logout_form = LogoutForm()  # Ensure logout_form is instantiated
-    form.lab_location_id.choices = [(loc.id, loc.location_name) for loc in IPLocation.query.all()]
+    form.lab_location_id.choices = [(loc.id, loc.location_name) for loc in current_user.ip_locations]
 
     if form.validate_on_submit():
         message = LabMessage(
@@ -435,7 +452,8 @@ def set_message(lab_location_id):
         flash('Your message has been posted.', 'success')
         return redirect(url_for('admin.admin_dashboard'))
 
-    lab_locations = IPLocation.query.all()
+    lab_locations = current_user.ip_locations
+
     return render_template('set_message.html', form=form, logout_form=logout_form, lab_locations=lab_locations)
 
 

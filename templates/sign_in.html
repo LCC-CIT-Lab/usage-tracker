@@ -13,7 +13,7 @@
             <br><br>
             <!-- Sign-In Form -->
             <div class="form-control-signin">
-                <form method="post" action="{{ url_for('main.sign_in') }}" class="sign-in-form">
+                <form method="post" action="{{ url_for('main.sign_in') }}" class="sign-in-form" id="sign-in-form-id">
                     {{ form.hidden_tag() }}
 
                     <!-- User ID Field -->
@@ -41,17 +41,20 @@
                             <div class="error">{{ form.class_selected.errors[0] }}</div>
                         {% endif %}
                     </div>
-                    <input type="submit" value="Sign In" class="button" autofocus=true>
                 </form>
             </div>
             <!-- Flash Messages -->
             {% for message in get_flashed_messages() %}
                 <div class="alert">{{ message }}</div>
             {% endfor %}
-
-            <!-- Navigation Buttons -->
+            <!-- Navigation and Sign In Buttons -->
             <div class="button-container">
-                <a href="{{ url_for('main.landing') }}" class="button">Back</a>
+                <div>
+                    <a href="{{ url_for('main.landing') }}" class="button">Back</a>
+                </div>
+                <div>
+                    <input type="submit" value="Sign In" class="buttonsignin" form="sign-in-form-id" autofocus=true>
+                </div>
             </div>
         </div>
     </div>

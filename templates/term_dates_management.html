@@ -11,6 +11,7 @@
             <div class="dashboard-header-signin">
                 <h2>Term Dates Management</h2>
             </div>
+            <br>
             <form action="{{ url_for('admin.term_dates_management') }}" method="post">
                 {{ form.hidden_tag() }}
                 <div class="form-group">
@@ -53,9 +54,11 @@
             </table>
             <br><br><br>
             <div class="button-container">
-                <!-- Back Button -->
-                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
-                <!-- Logout Button -->
+                <div>
+                    <!-- Back Button -->
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                </div>
+                    <!-- Logout Button -->
                 <div>
                     <form action="{{ url_for('auth.logout') }}" method="post">
                         {{ logout_form.hidden_tag() }}

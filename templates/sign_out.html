@@ -4,33 +4,56 @@
     <title>Checkout</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
     <script>
-        setTimeout(function() {
-            window.location.href = "{{ url_for('main.landing') }}";
-        }, 15000); // Redirect after 15 seconds
+        var signOutTimer;
+    
+        function resetSignOutTimer() {
+            clearTimeout(signOutTimer);
+            signOutTimer = setTimeout(function() {
+                window.location.href = "{{ url_for('main.auto_sign_out', l_number=l_number) }}";
+            }, 15000); // Reset timer to 15 seconds
+        }
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var commentField = document.getElementById('comment');
+            if (commentField) {
+                commentField.addEventListener('input', resetSignOutTimer);
+            }
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            resetSignOutTimer(); // Start the timer on page load
+        });
     </script>
 </head>
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
             <div class="dashboard-header-signin">
-                <h3>Signing out ...</h3>
+                <h2>Signing out ...</h2>
             </div>
             <div>
+                <h4>Today's Time in Lab: {{ daily_time|round(2) }} hours</h4>
+                <h4>Total Time This Term: {{ total_term_time|round(2) }} hours</h4>
                 <div><br><br>
                     Enter a comment or continue.
                 </div><br><br>
-                <form method="post">
+                <form method="post" id="sign-out-form-id">
                     {{ form.hidden_tag() }}
                     <input type="hidden" name="l_number" value="{{ request.args.get('l_number') }}">
                     <label for="comment">{{ form.comment.label.text }}</label> <!-- Assuming you want to show the label -->
-                    {{ form.comment(size=32, autofocus=true) }}
-                    <br><br><br><br><br>
-                    <div class="button-container">
-                        <input type="submit" class="btn btn-primary" value="Comment">
-                        <!-- Skip Comment Link styled as a button -->
-                        <a href="{{ url_for('main.landing') }}" class="button">Continue</a>
-                    </div>
+                    {{ form.comment(id='comment', size=32, autofocus=true) }}
                 </form>
+            </div>
+            <div class="button-container">
+                <div>
+                    <input type="submit" class="btn btn-primary" form="sign-out-form-id" value="Comment">
+                </div>
+                <div>    
+                    <!-- Skip Comment Link styled as a button -->
+                    <a href="{{ url_for('main.sign_out', l_number=l_number, continue=True) }}" class="button">Continue</a>
+                </div>
             </div>
         </div>
     </div>

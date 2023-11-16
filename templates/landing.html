@@ -10,7 +10,44 @@
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
-
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="alert" id="flash-message">
+                    {{ messages[0] }}
+                </div>
+            {% endif %}
+            {% endwith %}
+            <div class="dashboard-header-signin">
+                <h2>{{ lab_location_name }} Sign In / Out</h2>
+            </div>
+            <div class="content-container">
+                <div class="left-side">
+                    <!-- L-number Form -->
+                    <form id="landing-form" method="post" action="{{ url_for('main.landing') }}">
+                        {{ form.hidden_tag() }}
+                        <h3>
+                            <br>
+                            L - {{ form.l_number(size=7, placeholder="00000000", autofocus=true) }}
+                            {% if form.l_number.errors %}
+                                <div class="error">{{ form.l_number.errors[0] }}</div>
+                            {% endif %}
+                        </h3>
+                    </form>
+                </div>
+                <div class="right-side">
+                    <!-- Stats Table -->
+                    <table class="stats-table">
+                        <tr><td>Total Hours</td><td>{{ stats.total_hours }}</td></tr>
+                        <tr><td>Single Visit Students</td><td>{{ stats.single_visit_students_count }}</td></tr>
+                        <tr><td>Returning Students</td><td>{{ stats.returning_students_count }}</td></tr>
+                        <tr><td>Ratio</td><td>{{ stats.ratio }}</td></tr>
+                    </table>
+                </div>
+            </div>
+        
+            <br><br>
+            <span id="sign-in-count" data-lab-id="{{ lab_id }}">Loading...</span>
+            <br>
             {% if lab_location %}
                 {% if messages %}
                     {% for message in messages %}
@@ -20,38 +57,6 @@
                     {% endfor %}
                 {% endif %}
             {% endif %}
-
-            <br><br>
-
-            {% with messages = get_flashed_messages() %}
-                {% if messages %}
-                    <div class="alert">
-                        {{ messages[0] }}
-                    </div>
-                {% endif %}
-            {% endwith %}
-
-            <br><br><br><br>
-            <div class="dashboard-header-signin"><h3>{{ lab_location_name }} <br> Sign In  / Sign Out</h3></div>
-
-            <form method="post" action="{{ url_for('main.landing') }}">
-                {{ form.hidden_tag() }}
-                <div>
-                    <h3>
-                        <br>
-                        L - {{ form.l_number(size=7, placeholder="00000000", autofocus=true) }}
-                        {% if form.l_number.errors %}
-                            <div class="error">{{ form.l_number.errors[0] }}</div>
-                        {% endif %}
-                    </h3>
-                </div>
-                <br>
-                <div>
-                    <input type="submit" value="Submit">
-                </div>
-            </form>
-            <br><br>
-            <span id="sign-in-count" data-lab-id="{{ lab_id }}">Loading...</span>
             <script>
                 $(document).ready(function() {
                     function updateSignedInCount() {
@@ -77,6 +82,28 @@
                 });
 
             </script>
+            <script>
+                // Handle 'Enter' key for form submission
+                document.getElementById('l_number').addEventListener('keypress', function(event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        document.getElementById('landing-form').submit();
+                    }
+                });
+        
+                // existing script content
+            </script>
+            <script>
+                window.onload = function() {
+                  setTimeout(function() {
+                    var flashMessage = document.getElementById('flash-message');
+                    if (flashMessage) {
+                      flashMessage.style.opacity = '0';
+                      setTimeout(function() { flashMessage.style.display = 'none'; }, 500); // To sync with CSS transition
+                    }
+                  }, 5000); // 5000 milliseconds = 5 seconds
+                };
+              </script>
         </div>
     </div>
 

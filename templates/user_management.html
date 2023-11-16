@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <title>User Management</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script>
+        // When the DOM is fully loaded
+        document.addEventListener("DOMContentLoaded", function() {
+            // Restore checkbox states
+            document.querySelectorAll("input[name='selected_users']").forEach(function(checkbox) {
+                const isChecked = localStorage.getItem(checkbox.value) === 'true';
+                checkbox.checked = isChecked;
+            });
+    
+            // Save checkbox states on change
+            document.querySelectorAll("input[name='selected_users']").forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    localStorage.setItem(checkbox.value, checkbox.checked);
+                });
+            });
+        });
+    </script>    
 </head>
 <body>
     <div class="dashboard-container">
@@ -21,12 +38,10 @@
                     <input type="email" name="email" placeholder="Email" required>
                     <div class="checkbox-group">
                         <label><input type="checkbox" name="is_admin"> Admin?</label>
-                        <label><input type="checkbox" name="can_set_message"> Can Set Message?</label>
                     </div>
                     <button type="submit" class="form-button">Add User</button>
                 </form>
             </div>
-
             <!-- User Table -->
             <h3>User Table</h3>
             <form action="{{ url_for('admin.apply_bulk_actions') }}" method="post">
@@ -69,16 +84,17 @@
                 <!-- Action Buttons -->
                 <div class="actions">
                     {{ form.hidden_tag() }}
-                    <button type="submit" name="action" value="toggle_message">Toggle Message Permission</button>
                     <button type="submit" name="action" value="cycle_ip_mapping">Cycle IP Mapping</button>
                     <button type="submit" name="action" value="remove_users">Remove Selected Users</button>
                 </div>
             </form>
             <br><br><br>
             <div class="button-container">
-                <!-- Back Button -->
-                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
-                <!-- Logout Button -->
+                <div>
+                    <!-- Back Button -->
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                </div>
+                    <!-- Logout Button -->
                 <div>
                     <form action="{{ url_for('auth.logout') }}" method="post">
                         {{ logout_form.hidden_tag() }}

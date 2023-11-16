@@ -27,12 +27,14 @@ h3 {text-align: center;}
     position: relative;
 }
 .dashboard-header {
+    display: flex; /* Enable Flexbox */
+    flex-direction: column; /* Stack children vertically */
+    align-items: center; /* Center children horizontally */
+    justify-content: flex-start; /* Start aligning children from the top */
     min-width: 600px; /* Adjust as needed */
     max-width: 800px; /* Adjust as needed */
     min-height: 500px; /* Fixed height */
-   /* min-height: 90%;*/
     height: auto; /* Adjust height */
-    text-align: center;
     margin-bottom: 10px;
     background-color: #fdb913;
     padding: 20px;
@@ -40,15 +42,62 @@ h3 {text-align: center;}
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
 }
 .dashboard-header-signin {
+    width: 100%; /* Set width to 100% of the parent container */
     text-align: center;
-    margin-bottom: 10px;
-    background-color: white;
+    margin-bottom: 10px; /* Space between this section and the next */
+    color: white;
+    background-color: #00529b;
     padding: 20px;
     border-radius: 5px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
+
+/* Stats Section Styling */
+#stats {
+    display: grid; /* Enable Grid Layout */
+    grid-template-columns: 1fr 1fr; /* Divide into two columns */
+    gap: 10px; /* Space between columns */
+    width: 100%; /* Set width to 100% of the parent container */
+    align-items: center; /* Center items vertically */
+    justify-items: center; /* Center items horizontally */
+    padding: 20px; /* Add some padding */
+    margin-top: 10px; /* Space from the previous section */
+    background-color: white;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Align form in the center of left side */
+#landing-form {
+    width: 100%; /* Adjust as needed */
+    text-align: center; /* Center form contents */
+    margin-bottom: 10px; /* Space from the bottom */
+}
+
 .dashboard-header h1 {
     font-size: 2rem;
+}
+.content-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.left-side, .right-side {
+    flex: 1;
+    padding: 20px;
+}
+
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.stats-table td {
+    padding: 8px;
+    border: 1px solid #ddd;
+    text-align: left;
 }
 .dashboard-menu {
     list-style: none;
@@ -72,6 +121,7 @@ h3 {text-align: center;}
     background-color: #f44336;
     color: white;
     border-radius: 5px;
+    transition: opacity 0.5s linear;
 }
 form {
     text-align: center;
@@ -169,6 +219,19 @@ form {
     border-radius: 5px;
     border: none;
     background-color: #e01010;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    text-align: center; /* Center the text inside the button */
+    /* Ensure the width of 'Back' and 'Logout' buttons are the same if needed */
+    min-width: 100px; /* Adjust as needed to fit the content */
+}
+.buttonsignin {
+    padding: 10px 30px; /* Uniform padding for all buttons */
+    font-size: 16px;
+    border-radius: 5px;
+    border: none;
+    background-color: #00529b;
     color: white;
     cursor: pointer;
     transition: background-color 0.3s;
