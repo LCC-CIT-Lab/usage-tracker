@@ -12,6 +12,7 @@
                 <h2>Term Dates Management</h2>
             </div>
             <br>
+            <h3>Add Term Date</h3>
             <form action="{{ url_for('admin.term_dates_management') }}" method="post">
                 {{ form.hidden_tag() }}
                 <div class="form-group">
@@ -32,6 +33,8 @@
 
             <!-- List existing term dates -->
             <table>
+                <h3>Delete Term Date</h3>
+
                 <tr>
                     <th>Term Name</th>
                     <th>Start Date</th>
@@ -57,6 +60,13 @@
                 <div>
                     <!-- Back Button -->
                     <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                </div>
+                <div>
+                    <form action="{{ url_for('admin.upload_term_dates_csv') }}" method="post" enctype="multipart/form-data">
+                        {{ upload_csv_form.csrf_token }}  <!-- Include CSRF token -->
+                        {{ upload_csv_form.csv_file }}
+                        {{ upload_csv_form.submit }}
+                    </form>
                 </div>
                     <!-- Logout Button -->
                 <div>

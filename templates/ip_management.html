@@ -36,15 +36,15 @@
             </div>
             <div>
                 <h3>Delete IP Mapping</h3>
-
-                    {% for ip_mapping in ip_mappings %}
-                        <span>{{ ip_mapping.ip_address }} - {{ ip_mapping.location_name }}</span>
-                        <form method="post" action="{{ url_for('admin.remove_ip_mapping', ip_id=ip_mapping.id) }}">
-                                {{ remove_ip_form.hidden_tag() }}
-                            <input type="hidden" name="ip_id" value="{{ ip_mapping.id }}">
-                            <button type="submit" class="buttonsignout" onclick="return confirm('Are you sure?');">Delete</button>
-                        </form>
-                    {% endfor %}
+                <form method="post" action="{{ url_for('admin.remove_ip_mapping') }}">
+                    {{ remove_ip_form.hidden_tag() }}
+                    <select name="ip_id">
+                        {% for ip_mapping in ip_mappings %}
+                        <option value="{{ ip_mapping.id }}">{{ ip_mapping.ip_address }} - {{ ip_mapping.location_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="buttonsignout" onclick="return confirm('Are you sure?');">Delete</button>
+                </form>
             </div>
             <br><br><br>
             <div class="button-container">

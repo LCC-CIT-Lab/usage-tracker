@@ -14,7 +14,6 @@
             }{% if not loop.last %},{% endif %}
             {% endfor %}
         };
-        console.log(termDates); // This will print the termDates object to the console for inspection
 
         $('#term_date_range').change(function() {
             var selectedTermId = $(this).val();
@@ -72,7 +71,12 @@
                         <span style="color: red;">[{{ error }}]</span>
                     {% endfor %}
                 </div>
-
+                <div class="form-group">
+                    {{ form.term_selection.label }} {{ form.term_selection }}
+                    {% for error in form.term_selection.errors %}
+                        <span style="color: red;">[{{ error }}]</span>
+                    {% endfor %}
+                </div>
                 <div>
                     <br>{{ form.submit }}
                 </div>

@@ -2,9 +2,10 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app.utils import delete_old_logs, get_lab_info
 from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage, SignInData
-from app.forms import LoginForm, LogoutForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, TermDatesForm
+from app.forms import LoginForm, LogoutForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, UploadCSVForm, TermDatesForm
 from functools import wraps
 from datetime import datetime, timedelta
+from werkzeug.utils import secure_filename
 from io import StringIO
 
 import logging
@@ -15,6 +16,11 @@ import itertools
 
 admin_bp = Blueprint('admin', __name__)
 
+
+ALLOWED_EXTENSIONS = {'csv'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Decorator to require admin access
 def require_admin(f):
@@ -116,76 +122,63 @@ def query_selection():
     logout_form = LogoutForm()
     term_dates = TermDates.query.all()
 
-    # Populate the term_date_range choices
     form.term_date_range.choices = [(0, 'Select Term Date Range')] + [
         (td.id, f"{td.term_name}: {td.start_date.strftime('%Y-%m-%d')} to {td.end_date.strftime('%Y-%m-%d')}")
         for td in term_dates
     ]
 
     if form.validate_on_submit():
-        term_date = TermDates.query.get(form.term_date_range.data) if form.term_date_range.data else None
-
-        if term_date:
-            start_date = term_date.start_date
-            end_date = term_date.end_date + timedelta(days=1)
-            end_date_file = term_date.end_date
-        else:
-            start_date = form.start_date.data
-            end_date = form.end_date.data
-            end_date_file = end_date
-
-            if start_date and end_date:
-                end_date += timedelta(days=1)
-
-            else:
-                flash('Please specify start and end dates.', 'error')
-                return render_template('query_selection.html', form=form, term_dates=term_dates, logout_form=logout_form, csv_filename=None)
+        data = None  # Initialize data here
+        start_date, end_date = None, None
         
-        # Fetch data from DB
-        data = SignInData.query.filter(
-            SignInData.sign_in_timestamp >= start_date,
-            SignInData.sign_in_timestamp < end_date
-        ).all()
+        # Retrieve the current user's associated IP locations
+        user_ip_locations = [location.id for location in current_user.ip_locations]
+
+        if form.term_selection.data == 'complete_term':
+            # Adjust the query to filter by the user's locations
+            data = SignInData.query.filter(SignInData.ip_location_id.in_(user_ip_locations)).all()
+
+        elif form.term_selection.data == 'term_by_id':
+            term_date = TermDates.query.get(form.term_date_range.data)
+            if term_date:
+                start_date = term_date.start_date
+                end_date = term_date.end_date + timedelta(days=1)
+                data = SignInData.query.filter(
+                    SignInData.sign_in_timestamp.between(start_date, end_date),
+                    SignInData.ip_location_id.in_(user_ip_locations)
+                ).all()
+
+        if not start_date or not end_date:
+            start_date = form.start_date.data
+            end_date = form.end_date.data + timedelta(days=1)
+            data = SignInData.query.filter(
+                SignInData.sign_in_timestamp.between(start_date, end_date)
+            ).all()
 
         if not data:
-            current_app.logger.debug('No data found for the selected date range.')
             flash('No data found for the selected date range.', 'error')
-            return render_template('query_selection.html', form=form, logout_form=logout_form, term_dates=term_dates, csv_filename=None)
+        else:
+            # Generate CSV
+            csv_filename = f"attendance_data_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.csv"
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow(["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Comments"])
+            for entry in data:
+                writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp,
+                                entry.sign_out_timestamp, entry.comments])
+            output.seek(0)
 
-        # Generate a unique filename for the CSV
-        csv_filename = f"attendance_data_{start_date.strftime('%Y-%m-%d')}_{end_date_file.strftime('%Y-%m-%d')}.csv"
+            # Save CSV data
+            csv_folder = os.path.join(current_app.root_path, 'csv_files')
+            if not os.path.exists(csv_folder):
+                os.makedirs(csv_folder)
+            csv_path = os.path.join(csv_folder, csv_filename)
+            with open(csv_path, 'w', newline='') as f:
+                f.write(output.getvalue())
+            session['csv_filename'] = csv_filename
 
-        output = StringIO()
-        writer = csv.writer(output)
-        # ... writing to CSV logic ...
-        writer.writerow(
-            ["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Comments"])
-        for entry in data:
-            writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp,
-                            entry.sign_out_timestamp, entry.comments])
-        output.seek(0)
+            return render_template('query_selection.html', form=form, term_dates=term_dates, logout_form=logout_form, csv_filename=csv_filename)
 
-        # Define the path for the csv_files directory
-        csv_folder = os.path.join(current_app.root_path, '../csv_files')
-        if not os.path.exists(csv_folder):
-            os.makedirs(csv_folder)
-
-        # Save the CSV data in the csv_files folder
-        csv_path = os.path.join(csv_folder, csv_filename)
-        with open(csv_path, 'w', newline='') as f:
-            f.write(output.getvalue())
-
-        # Store the filename in the session for retrieval
-        session['csv_filename'] = csv_filename
-
-        # Add the filename to the template context
-        return render_template('query_selection.html', form=form, logout_form=logout_form, data=data, term_dates=term_dates, csv_filename=csv_filename)
-
-    else:
-        if request.method == 'POST':
-            flash('Form submission is invalid', 'error')
-
-    # If it's a GET request or the POST request is processed, show the same query selection page without the download link
     return render_template('query_selection.html', form=form, term_dates=term_dates, logout_form=logout_form, csv_filename=None)
 
 
@@ -346,6 +339,9 @@ def cycle_ip_mapping(user_id, redirect_enabled=True):
 def term_dates_management():
     form = TermDatesForm()
     logout_form = LogoutForm()
+    upload_csv_form = UploadCSVForm()  # Instantiate the form for CSV upload
+    term_dates = TermDates.query.all()
+
 
     if form.validate_on_submit():
         start_date = form.start_date.data
@@ -366,7 +362,7 @@ def term_dates_management():
             flash(f'An error occurred: {e}', 'error')
 
     term_dates = TermDates.query.all()
-    return render_template('term_dates_management.html', form=form, term_dates=term_dates, logout_form=logout_form)
+    return render_template('term_dates_management.html', form=form, upload_csv_form=upload_csv_form, term_dates=term_dates, logout_form=logout_form)
 
 
 def determine_term_name(start_date):
@@ -397,6 +393,46 @@ def delete_term_date(term_date_id):
     except Exception as e:
         db.session.rollback()
         flash(f'An error occurred: {e}', 'error')
+
+    return redirect(url_for('admin.term_dates_management'))
+
+
+@admin_bp.route('/upload_term_dates_csv', methods=['GET', 'POST'])
+@login_required
+@require_admin
+def upload_term_dates_csv():
+    file = request.files['csv_file']
+    # Define the path for the uploads directory
+    uploads_folder = os.path.join(current_app.root_path, 'uploads')
+
+    # Check if the directory exists, create it if it doesn't
+    if not os.path.exists(uploads_folder):
+        os.makedirs(uploads_folder)
+
+    # Define the full path including the file name
+    csv_path = os.path.join(uploads_folder, secure_filename(file.filename))
+
+    # Save the file
+    file.save(csv_path)
+
+    try:
+        with open(csv_path, mode='r') as csv_file:
+            csv_data = csv.reader(csv_file)
+            next(csv_data, None)  # Skip header
+            for row in csv_data:
+                start_date = datetime.strptime(row[0], '%m/%d/%y').date()
+                end_date = datetime.strptime(row[1], '%m/%d/%y').date()
+                term_name = determine_term_name(start_date)
+
+                new_term_dates = TermDates(term_name=term_name, start_date=start_date, end_date=end_date)
+                db.session.add(new_term_dates)
+            db.session.commit()
+        flash('Term dates added successfully from CSV.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error processing CSV file: {e}', 'error')
+    finally:
+        os.remove(csv_path)  # Clean up the uploaded file
 
     return redirect(url_for('admin.term_dates_management'))
 
@@ -574,24 +610,21 @@ def add_ip_mapping(ip_mapping_form):
 
 
 # Function to remove an IP mapping location from the database
-@admin_bp.route('/remove_ip_mapping/<int:ip_id>', methods=['POST'])
+@admin_bp.route('/remove_ip_mapping', methods=['POST'])
 @login_required
 @require_admin
-def remove_ip_mapping(ip_id):
-    ip_mapping = IPLocation.query.get_or_404(ip_id)
-    # Make sure to handle associated messages if any
-    messages = LabMessage.query.filter_by(lab_location_id=ip_id).all()
-    for message in messages:
-        db.session.delete(message)
-    try:
-        db.session.delete(ip_mapping)
-        db.session.commit()
-        flash('IP mapping removed successfully.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'An error occurred while removing the IP mapping: {e}', 'error')
-
+def remove_ip_mapping():
+    remove_ip_form = RemoveIPMappingForm()
+    if remove_ip_form.validate_on_submit():
+        ip_location = IPLocation.query.get(remove_ip_form.remove_ip_id.data)
+        if ip_location:
+            db.session.delete(ip_location)
+            db.session.commit()
+            flash('IP mapping removed successfully.', 'success')
+        else:
+            flash('IP mapping not found.', 'error')
     return redirect(url_for('admin.ip_management'))
+
 
 
 ## LOG DATA PAGE ##
@@ -630,11 +663,11 @@ def download_csv(filename):
         return "Invalid filename", 400
 
     # Update the path to the csv_files folder
-    csv_folder = os.path.join(current_app.root_path, '../csv_files')
+    csv_folder = os.path.join(current_app.root_path, 'csv_files')
     csv_path = os.path.join(csv_folder, filename)
     
     if os.path.exists(csv_path):
-        return send_file(csv_path, as_attachment=True)
+        return send_file(csv_path, as_attachment=True, mimetype='text/csv', download_name=filename)
     else:
         flash('No CSV data found. Please generate the report again.', 'error')
         return redirect(url_for('admin.query_selection'))

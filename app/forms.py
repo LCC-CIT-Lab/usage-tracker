@@ -2,6 +2,7 @@ from flask_wtf import FlaskForm
 from wtforms import RadioField, StringField, SelectField, SubmitField, HiddenField, PasswordField, TextAreaField
 from wtforms.validators import DataRequired, InputRequired, IPAddress, Optional
 from wtforms.fields import DateField
+from flask_wtf.file import FileField, FileAllowed, FileRequired
 
 
 class CSRFProtectForm(FlaskForm):
@@ -48,6 +49,8 @@ class QuerySelectionForm(FlaskForm):
     start_date = DateField('Start Date', validators=[Optional()])
     end_date = DateField('End Date', validators=[Optional()])
     submit = SubmitField('Generate Report')
+    term_selection = SelectField('Select Term', choices=[('complete_term', 'Complete Term'), ('term_by_id', 'Term by ID')])
+
 
     def validate(self, **kwargs):
         # If term_date_range is set, don't validate start_date and end_date
@@ -68,7 +71,7 @@ class AddIPMappingForm(FlaskForm):
 
 
 class RemoveIPMappingForm(FlaskForm):
-    remove_location_name = StringField('Location Name to Remove', validators=[DataRequired()])
+    remove_ip_id = SelectField('Select IP Mapping to Remove', coerce=int)
     remove_submit = SubmitField('Remove IP Mapping')
 
 
@@ -76,6 +79,11 @@ class TermDatesForm(FlaskForm):
     start_date = DateField('Start Date', format='%Y-%m-%d', validators=[DataRequired()])
     end_date = DateField('End Date', format='%Y-%m-%d', validators=[DataRequired()])
     submit = SubmitField('Add Term Dates')
+
+
+class UploadCSVForm(FlaskForm):
+    csv_file = FileField('CSV File', validators=[FileRequired(), FileAllowed(['csv'], 'CSV files only')])
+    submit = SubmitField('Upload CSV')
 
 
 class MessageForm(FlaskForm):

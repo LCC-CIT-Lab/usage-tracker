@@ -55,12 +55,6 @@ class IPLocation(db.Model):
         return f'<IPLocation {self.ip_address} - {self.location_name}>'
 
 
-class UserIPLocation(db.Model):
-    __tablename__ = 'user_ip_location'
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), primary_key=True)
-    ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'), primary_key=True)
-
-
 class TermDates(db.Model):
     __tablename__ = 'term_dates'
 
