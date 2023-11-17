@@ -66,7 +66,7 @@ To set up the project:
 
 ### Backend
 
-- `app.py`: Core application setup, routes, and logic.
+- `main.py`: Core application setup, routes, and logic.
 - `models.py`: Database models for users, sign-in data, IP locations, messages, and logs.
 - `admin.py`: Administrative functionalities and backend logic.
 
