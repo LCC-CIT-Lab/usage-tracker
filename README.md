@@ -127,9 +127,6 @@ Developed by LCC-CIT-Lab, this project aims to streamline lab attendance managem
 
 ### To-Dos
 
-- Implement flash message timeout on `admin_dashboard.html`.
-- Auto-fill dates in `query_selection.html` when selecting a term date range.
 - CSV file upload for term date management in `term_management.html`.
-- Redirect post message to the same page in `set_message.html`.
-- Scheduled cron jobs for log deletion and auto sign-out.
+- Verify log deletion and auto sign-out.
 - Implement logout form as a Flask-WTForms component.
