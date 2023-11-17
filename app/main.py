@@ -61,10 +61,6 @@ def landing():
         # Obtain l_number directly from the form data
         l_number = form.l_number.data
 
-        # Check for 'admin' input
-        if l_number.lower() == "admin":
-            return redirect(url_for('auth.login'))
-
         # Normalize l_number
         l_number = normalize_l_number(l_number)
 

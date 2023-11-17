@@ -47,7 +47,8 @@
             <div class="bottomstats">
                 <span id="sign-in-count" data-lab-id="{{ lab_id }}">Loading...</span>
                 <br>
-                <a href="{{ url_for('main.statistics', lab_id=lab_id) }}">View Statistics</a>
+                <a href="{{ url_for('main.statistics', lab_id=lab_id) }}">Statistics</a> -
+                <a href="{{ url_for('auth.login') }}">Admin</a>
             </div>
         </div>
     </div>
