@@ -71,7 +71,7 @@ class AddIPMappingForm(FlaskForm):
 
 
 class RemoveIPMappingForm(FlaskForm):
-    remove_ip_id = SelectField('Select IP Mapping to Remove', coerce=int)
+    remove_ip_id = SelectField('IP Location', coerce=int)
     remove_submit = SubmitField('Remove IP Mapping')
 
 

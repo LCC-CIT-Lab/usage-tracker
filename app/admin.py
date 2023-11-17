@@ -135,17 +135,23 @@ def query_selection():
         user_ip_locations = [location.id for location in current_user.ip_locations]
 
         if form.term_selection.data == 'complete_term':
-            # Adjust the query to filter by the user's locations
-            data = SignInData.query.filter(SignInData.ip_location_id.in_(user_ip_locations)).all()
+            # Fetch all data for all locations
+            data = SignInData.query.all()
 
         elif form.term_selection.data == 'term_by_id':
+            # Fetch data for current user's lab location
             term_date = TermDates.query.get(form.term_date_range.data)
             if term_date:
                 start_date = term_date.start_date
                 end_date = term_date.end_date + timedelta(days=1)
+
+                # Retrieve the current user's associated IP location
+                user_ip_location_id = current_user.ip_location_id
+
+                # Filter data based on the user's IP location
                 data = SignInData.query.filter(
                     SignInData.sign_in_timestamp.between(start_date, end_date),
-                    SignInData.ip_location_id.in_(user_ip_locations)
+                    SignInData.ip_location_id == user_ip_location_id
                 ).all()
 
         if not start_date or not end_date:
@@ -342,7 +348,6 @@ def term_dates_management():
     upload_csv_form = UploadCSVForm()  # Instantiate the form for CSV upload
     term_dates = TermDates.query.all()
 
-
     if form.validate_on_submit():
         start_date = form.start_date.data
         end_date = form.end_date.data
@@ -520,9 +525,12 @@ def ip_management():
     remove_ip_form = RemoveIPMappingForm()
     logout_form = LogoutForm()
 
+    # Populate choices for remove_ip_form's remove_ip_id field
+    ip_locations = IPLocation.query.all()
+    remove_ip_form.remove_ip_id.choices = [(ip.id, f"{ip.ip_address} - {ip.location_name}") for ip in ip_locations]
+
     if request.method == 'POST':
         if add_ip_form.validate_on_submit():
-            current_app.logger.info('Attempting to add IP mapping.')
             # Logic to add an IP mapping
             new_ip_location = IPLocation(
                 ip_address=add_ip_form.ip_address.data,
@@ -532,32 +540,30 @@ def ip_management():
             try:
                 db.session.commit()
                 flash('IP mapping added successfully.', 'success')
-                current_app.logger.info('IP mapping added successfully.')
-
             except Exception as e:
                 db.session.rollback()
                 flash(f'Error adding IP mapping: {e}', 'error')
-                current_app.logger.warning('Add IP Form did not validate.')
+            # Redirect to refresh the form and choices
+            return redirect(url_for('admin.ip_management'))
 
         elif remove_ip_form.validate_on_submit():
-            current_app.logger.info('Attempting to remove IP mapping.')
             # Logic to remove an IP mapping
-            location_to_remove = remove_ip_form.remove_location_name.data
-            ip_location = IPLocation.query.filter_by(location_name=location_to_remove).first()
+            selected_ip_id = remove_ip_form.remove_ip_id.data
+            ip_location = IPLocation.query.get(selected_ip_id)
             if ip_location:
                 db.session.delete(ip_location)
-                try:
-                    db.session.commit()
-                    flash('IP mapping removed successfully.', 'success')
-                    current_app.logger.info('IP mapping removed successfully.')
-                except Exception as e:
-                    db.session.rollback()
-                    flash(f'Error removing IP mapping: {e}', 'error')
+                db.session.commit()
+                flash('IP mapping removed successfully.', 'success')
             else:
-                flash('Location name not found.', 'error')
+                flash('Selected IP mapping not found.', 'error')
+            # Redirect to refresh the form and choices
+            return redirect(url_for('admin.ip_management'))
+        else:
+            # Handle form validation errors for both forms
+            flash('Form validation error.', 'error')
 
-    return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form,
-                           logout_form=logout_form, ip_mappings=IPLocation.query.all())
+    # Render the template with the forms
+    return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form, logout_form=logout_form, ip_mappings=ip_locations)
 
 
 @admin_bp.route('/update_user_ip_mapping/<int:user_id>', methods=['POST'])
@@ -614,7 +620,10 @@ def add_ip_mapping(ip_mapping_form):
 @login_required
 @require_admin
 def remove_ip_mapping():
+    ip_locations = IPLocation.query.all()
     remove_ip_form = RemoveIPMappingForm()
+    remove_ip_form.remove_ip_id.choices = [(ip.id, f"{ip.ip_address} - {ip.location_name}") for ip in ip_locations]
+
     if remove_ip_form.validate_on_submit():
         ip_location = IPLocation.query.get(remove_ip_form.remove_ip_id.data)
         if ip_location:
@@ -623,8 +632,10 @@ def remove_ip_mapping():
             flash('IP mapping removed successfully.', 'success')
         else:
             flash('IP mapping not found.', 'error')
-    return redirect(url_for('admin.ip_management'))
+    else:
+        flash('Form validation error.', 'error')
 
+    return redirect(url_for('admin.ip_management'))
 
 
 ## LOG DATA PAGE ##
