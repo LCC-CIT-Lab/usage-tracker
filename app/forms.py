@@ -1,8 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import RadioField, StringField, SelectField, SubmitField, HiddenField, PasswordField, TextAreaField
-from wtforms.validators import ValidationError, DataRequired, InputRequired, IPAddress, Optional
+from wtforms.validators import DataRequired, InputRequired, IPAddress, Optional
 from wtforms.fields import DateField
-from app.models import SignInData
 
 
 class CSRFProtectForm(FlaskForm):

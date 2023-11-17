@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lab Statistics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Display flashed messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="dashboard-header">
+            <h2>Lab Statistics for {{ lab_location_name }}</h2>
+
+            <!-- Enhanced Stats Table -->
+            <table class="stats-table">
+                <tr><td>Total Hours</td><td>{{ stats.total_hours }}</td></tr>
+                <tr><td>Average Session Duration</td><td>{{ stats.average_session_duration }}</td></tr>
+                <tr><td>Peak Hour</td><td>{{ stats.peak_hour }}</td></tr>
+                <tr><td>Busiest Day</td><td>{{ stats.busiest_day }}</td></tr>
+                <tr><td>New Students</td><td>{{ stats.new_students }}</td></tr>
+                <tr><td>Returning Students</td><td>{{ stats.returning_students }}</td></tr>
+                <tr><td>Most Popular Class</td><td>{{ stats.most_popular_class }}</td></tr>
+            </table>
+        </div>
+        <div class="button-container">
+            <div>
+            </div>
+            <div>
+                <!-- Skip Comment Link styled as a button -->
+                <a href="{{ url_for('main.landing') }}" class="button">Continue</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

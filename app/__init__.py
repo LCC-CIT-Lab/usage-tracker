@@ -1,16 +1,14 @@
 from flask import Flask, render_template
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 from app.auth import auth_bp
-from app.admin import admin_bp, create_admin, start_scheduler, setup_logging
+from app.admin import admin_bp, create_admin, setup_logging
 from app.main import main_bp
 from app.models import db, DatabaseLogHandler
 from .config import load_config
 
 import os
-import toml
 import logging
 
 from logging.handlers import RotatingFileHandler
@@ -22,7 +20,6 @@ has_run = False
 # Initialize extensions
 login_manager = LoginManager()
 migrate = Migrate()
-start_scheduler()
 
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
@@ -32,9 +29,8 @@ def create_app():
     app.run(ssl_context='adhoc')   # The ssl_context='adhoc' is for demo purposes. Use proper SSL in production.
 
     # Load configuration
-    config = load_config()
-    print(config)  # Add this line to debug the config loading
-    app.config.update(config)
+    inscopeconfig = load_config()
+    app.config.update(inscopeconfig)
 
     csrf = CSRFProtect(app)
 
@@ -43,7 +39,7 @@ def create_app():
     app.config['SESSION_COOKIE_SECURE'] = app.config['encryption']['SESSION_COOKIE_SECURE']
     app.config['SQLALCHEMY_DATABASE_URI'] = app.config['flask']['SQLALCHEMY_DATABASE_URI']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['DEBUG'] = config['flask']['DEBUG']
+    app.config['DEBUG'] = app.config['flask']['DEBUG']
 
     # Initialize extensions
     db.init_app(app)
@@ -51,7 +47,6 @@ def create_app():
     csrf.init_app(app)
     migrate.init_app(app, db)
     setup_logging(app)
-
 
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -65,7 +60,6 @@ def create_app():
     def load_user(user_id):
         from app.models import User  # Local import to avoid circular dependency
         return User.query.get(int(user_id))
-
 
     # Error handlers
     @app.errorhandler(404)

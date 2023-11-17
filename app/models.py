@@ -12,6 +12,7 @@ user_ip_mapping = db.Table('user_ip_mapping',
     db.Column('ip_location_id', db.Integer, db.ForeignKey('ip_location.id'), primary_key=True)
 )
 
+
 class SignInData(db.Model):
     # Database model for SignInData
     id = db.Column(db.Integer, primary_key=True)
@@ -31,9 +32,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     hashed_password = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
-    is_default_password = db.Column(db.Boolean, default=True, nullable=False)
     can_set_message = db.Column(db.Boolean, default=False)
-    can_access_query_selection = db.Column(db.Boolean, default=False)
     ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
     ip_locations = db.relationship('IPLocation', secondary=user_ip_mapping, lazy='subquery',
                                    backref=db.backref('mapped_users', lazy=True))
@@ -51,6 +50,7 @@ class IPLocation(db.Model):
     ip_address = db.Column(db.String(45))
     location_name = db.Column(db.String(100))
     sign_ins = db.relationship('SignInData', backref='ip_location', lazy='dynamic')
+
     def __repr__(self):
         return f'<IPLocation {self.ip_address} - {self.location_name}>'
 
@@ -106,6 +106,5 @@ class DatabaseLogHandler(logging.Handler):
                     current_app.logger.error("Failed to log message to database: %s", str(e))
         except Exception as e:
             # Log the error using a separate logger or print to stderr
-            print(f"Failed to log message to database: {e}", file=sys.stderr)
             db.session.rollback()
 

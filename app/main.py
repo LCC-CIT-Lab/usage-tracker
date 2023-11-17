@@ -1,24 +1,18 @@
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash, session, current_app, send_from_directory
-from flask_login import login_required, current_user
-from flask_wtf.csrf import generate_csrf, validate_csrf
 from itsdangerous import URLSafeTimedSerializer, BadSignature
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, time
 from email.mime.text import MIMEText
 from app.models import db, SignInData, IPLocation, TermDates, LabMessage
-from app.forms import LandingForm, LogoutForm, SignInForm, SignOutForm, LoginForm, CSRFProtectForm
+from app.forms import LandingForm, SignInForm, SignOutForm
+from app.utils import get_lab_info, delete_old_logs
+from paramiko import util
 from .config import load_config
 from fs.sshfs import SSHFS
-from fs import open_fs
-from fs.errors import CreateFailed
-from paramiko import util
-from sqlalchemy import func, case, and_, or_
-
+from sqlalchemy import func, extract
 
 import subprocess
 import os
-import logging
 import csv
-import fs
 import paramiko
 import logging
 
@@ -31,7 +25,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Configure the logging level for Paramiko to DEBUG
-util.log_to_file('paramiko.log', level=5)
+util.log_to_file('paramiko.log', level=40)
 
 
 def generate_csrf_token(secret_key):
@@ -63,11 +57,6 @@ def landing():
         lab_location = None
         messages = None
 
-    message = get_latest_lab_message(lab_id) if lab_location else None
-
-    # Calculate stats for every render_template call
-    stats = get_student_stats(lab_id) if lab_id else None
-    
     if form.validate_on_submit():
         # Obtain l_number directly from the form data
         l_number = form.l_number.data
@@ -82,21 +71,21 @@ def landing():
         # Check if it's a valid student L number
         if not student_exists(l_number):
             flash('Invalid L number, please sign-in again.')
-            return redirect(url_for('main.landing', lab_id=lab_id, stats=stats))
+            return redirect(url_for('main.landing', lab_id=lab_id))
 
         # Proceed if valid student L number
         session['l_number'] = l_number
 
-        action = choosesignout(l_number, lab_id)
+        action = choosesignout(l_number)
         if action == 'sign_out':
             return redirect(url_for('main.sign_out', l_number=l_number))
         else:
             return redirect(url_for('main.sign_in', l_number=l_number))
         
-    return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages, stats=stats)
+    return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages)
 
 
-def choosesignout(l_number, lab_id):
+def choosesignout(l_number):
     # Check if student is already signed in today
     today = datetime.now().date()
     student_entries_today = SignInData.query.filter_by(l_number=l_number).all()
@@ -137,28 +126,26 @@ def handle_student_sign_in(l_number, lab_id):
 
 
 def create_sshfs():
-    try:
-        current_app.logger.debug("Loading private key for SSHFS.")
-        pkey = paramiko.RSAKey.from_private_key_file(config['sshfs']['PRIVATE_KEY_PATH'])
+    current_app.logger.debug("Loading private key for SSHFS.")
+    pkey = paramiko.RSAKey.from_private_key_file(config['sshfs']['PRIVATE_KEY_PATH'])
 
-        current_app.logger.debug("Creating SSHFS instance.")
-        sshfs = SSHFS(
-            host=config['sshfs']['HOST'],
-            user=config['sshfs']['USER'],
-            pkey=pkey,
-            port=config['sshfs']['PORT'],
-        )
-        current_app.logger.debug("SSHFS instance created successfully.")
-        return sshfs
-    except Exception as e:
-        current_app.logger.exception("SSHFS connection error")
-        return None
+    current_app.logger.debug("Creating SSHFS instance.")
+    sshfs = SSHFS(
+        host=config['sshfs']['HOST'],
+        user=config['sshfs']['USER'],
+        pkey=pkey,
+        port=config['sshfs']['PORT'],
+    )
+    current_app.logger.debug("SSHFS instance created successfully.")
+    return sshfs
 
 
 @main_bp.route('/sign-in', methods=['GET', 'POST'])
 def sign_in():
+    form = SignInForm()
+    lab_location_name = 'Unknown Location'  # Initialize lab_location_name
+
     try:
-        form = SignInForm()
 
         current_app.logger.debug("sign_in function called")
 
@@ -188,11 +175,8 @@ def sign_in():
             flash('L number is missing. Please try again.', 'error')
             return redirect(url_for('main.landing'))
 
-        print("Form data:", request.form)
-
         if form.validate_on_submit():
             current_app.logger.debug("Form is valid, processing sign-in")
-            print("Class Selected:", form.class_selected.data)  # Debugging
             class_selected = form.class_selected.data
 
             sign_in_data = SignInData(
@@ -227,6 +211,9 @@ def sign_out():
     l_number = request.args.get('l_number') or session.get('l_number')
     comment = form.comment.data
     continue_without_comment = request.args.get('continue')  # Check if continue was clicked
+
+    # Delete old logs after successful admin login
+    delete_old_logs()
 
     # Ensure l_number is available
     if not l_number:
@@ -350,14 +337,6 @@ def get_student_today(l_number):
     ).order_by(SignInData.sign_in_timestamp.desc()).first()
 
 
-def get_lab_info(ip_address):
-    """Retrieve lab location and ID based on the user's IP address."""
-    ip_location = IPLocation.query.filter_by(ip_address=ip_address).first()
-    if ip_location:
-        return ip_location.location_name, ip_location.id
-    return "Unknown Location", None
-
-
 def get_lab_name(ip_address):
     """Retrieve lab location based on the user's IP address."""
     ip_location = IPLocation.query.filter_by(ip_address=ip_address).first()
@@ -414,7 +393,6 @@ def get_student_classes(l_number):
     classes = []
     local_file_path = 'zsrslst_cit.txt'
     local_file_path_classes = 'zsrsecl_cit.txt'
-    sshfs = create_sshfs()
 
     try:
         # Read student's class IDs from local file
@@ -476,26 +454,21 @@ def download_csv(filename):
 def current_sign_ins(lab_id):
     if lab_id != 'None' and lab_id.isdigit():
         lab_id = int(lab_id)
-        print("Lab ID:", lab_id)  # Debug print statement
 
         sign_ins = SignInData.query.join(
             IPLocation, SignInData.ip_location_id == IPLocation.id
         ).filter(IPLocation.id == lab_id).all()
 
-        # Print all records before filtering for sign_out_timestamp and date
-        for sign_in in sign_ins:
-            print(sign_in.l_number, sign_in.lab_location, sign_in.ip_location_id, sign_in.sign_in_timestamp, sign_in.sign_out_timestamp)
-
         count = len([sign_in for sign_in in sign_ins if sign_in.sign_out_timestamp is None and sign_in.sign_in_timestamp.date() == datetime.now().date()])
-        
-        print(f'Checking sign-ins for lab ID: {lab_id}')  # Verbose comment
-        print(f'Number of users currently signed in: {count}')  # Verbose comment
+
         return jsonify(count=count)
     else:
         return jsonify({'error': 'Invalid lab ID'}), 404
 
 
 def send_comment_to_support(l_number, comment):
+    email_file_path = '/tmp/email.txt'  # Use a full path, e.g., in /tmp
+
     try:
         # Email details
         email = config['smtp']['SUPPORT_EMAIL']
@@ -509,7 +482,6 @@ def send_comment_to_support(l_number, comment):
         msg['To'] = email
 
         # Write the email to a file
-        email_file_path = '/tmp/email.txt'  # Use a full path, e.g., in /tmp
         with open(email_file_path, 'w') as file:
             file.write(msg.as_string())
 
@@ -596,3 +568,86 @@ def get_student_stats(lab_id):
         "ratio": ratio
     }
 
+
+@main_bp.route('/statistics')
+def statistics():
+    lab_id = request.args.get('lab_id')
+    lab_location_name = get_lab_name(request.remote_addr)
+
+    if lab_id and is_valid_lab_id(lab_id):
+        # Enhanced statistics gathering logic here
+        stats = enhanced_student_stats(lab_id)  # This is a new function to be implemented
+        return render_template('statistics.html', stats=stats, lab_id=lab_id, lab_location_name=lab_location_name)  # Pass 'stats' and 'lab_id' to the template
+    else:
+        flash('Invalid lab ID', 'error')
+        return redirect(url_for('main.landing'))
+
+
+def enhanced_student_stats(lab_id):
+    # Ensure lab_id is valid
+    if not lab_id:
+        return None
+
+    # Define the current term
+    current_term = TermDates.query.filter(
+        TermDates.start_date <= datetime.now().date(),
+        TermDates.end_date >= datetime.now().date()
+    ).first()
+    if not current_term:
+        return None
+
+    # Basic stats
+    sign_ins = SignInData.query.filter(
+        SignInData.sign_in_timestamp.between(current_term.start_date, current_term.end_date),
+        SignInData.ip_location_id == lab_id
+    ).all()
+
+    total_hours = sum(
+        ((sign_out.sign_out_timestamp or datetime.now()) - sign_out.sign_in_timestamp).total_seconds() / 3600
+        for sign_out in sign_ins
+    )
+
+    # Average session duration
+    avg_session_duration = total_hours / len(sign_ins) if sign_ins else 0
+
+    # Peak hours
+    hours = db.session.query(
+        extract('hour', SignInData.sign_in_timestamp).label('hour'),
+        func.count(SignInData.id)
+    ).group_by('hour').order_by(func.count(SignInData.id).desc()).first()
+    peak_hour = hours.hour if hours else None
+
+    # Day of week analysis
+    day_of_week_counts = db.session.query(
+        extract('dow', SignInData.sign_in_timestamp).label('dow'),
+        func.count(SignInData.id)
+    ).group_by('dow').all()
+
+    busiest_day = max(day_of_week_counts, key=lambda x: x[1])[0] if day_of_week_counts else None
+
+    # New vs Returning students
+    student_visits = db.session.query(
+        SignInData.l_number,
+        func.count(SignInData.id)
+    ).group_by(SignInData.l_number).all()
+
+    new_students = len([visit for visit in student_visits if visit[1] == 1])
+    returning_students = len(student_visits) - new_students
+
+    # Class Popularity
+    class_popularity = db.session.query(
+        SignInData.class_selected,
+        func.count(SignInData.id)
+    ).group_by(SignInData.class_selected).all()
+
+    most_popular_class = max(class_popularity, key=lambda x: x[1])[0] if class_popularity else None
+
+    return {
+        "total_hours": round(total_hours, 2),
+        "average_session_duration": round(avg_session_duration, 2),
+        "peak_hour": peak_hour,
+        "busiest_day": busiest_day,
+        "new_students": new_students,
+        "returning_students": returning_students,
+        "most_popular_class": most_popular_class
+    }

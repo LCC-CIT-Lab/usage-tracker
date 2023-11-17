@@ -1,6 +1,7 @@
 import os
 import toml
 
+
 def load_config():
     # Load configurations
     root_path = os.path.dirname(os.path.abspath(__file__))  # Adjust to your package structure

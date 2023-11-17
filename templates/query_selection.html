@@ -1,19 +1,38 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>Query Page</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        $(document).ready(function() {
-            $('#term_date_range').change(function() {
-                var isTermDateSelected = $(this).val() !== '0';
-                console.log("Term date selected: " + isTermDateSelected); // This should log true or false to the console when you change the selection
+    $(document).ready(function() {
+        var termDates = {
+            {% for term_date in term_dates %}
+            "{{ term_date.id }}": {
+                "start": "{{ term_date.start_date.strftime('%Y-%m-%d') }}",
+                "end": "{{ term_date.end_date.strftime('%Y-%m-%d') }}"
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        };
+        console.log(termDates); // This will print the termDates object to the console for inspection
 
-                $('#start_date').prop('required', !isTermDateSelected);
-                $('#end_date').prop('required', !isTermDateSelected);
-            });
+        $('#term_date_range').change(function() {
+            var selectedTermId = $(this).val();
+            var isTermDateSelected = selectedTermId !== '0';
+            console.log("Term date selected: " + isTermDateSelected);
+
+            if (isTermDateSelected && termDates[selectedTermId]) {
+                $('#start_date').val(termDates[selectedTermId].start);
+                $('#end_date').val(termDates[selectedTermId].end);
+            } else {
+                $('#start_date').val('');
+                $('#end_date').val('');
+            }
+
+            $('#start_date').prop('required', !isTermDateSelected);
+            $('#end_date').prop('required', !isTermDateSelected);
         });
+    });
     </script>
 </head>
 <body>

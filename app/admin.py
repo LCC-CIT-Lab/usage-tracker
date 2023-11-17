@@ -1,24 +1,17 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, session, send_file
 from flask_login import login_required, current_user
-from apscheduler.schedulers.background import BackgroundScheduler
-from bleach import clean
-from app.main import get_lab_info
+from app.utils import delete_old_logs, get_lab_info
 from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage, SignInData
 from app.forms import LoginForm, LogoutForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, TermDatesForm
-from .config import load_config
 from functools import wraps
 from datetime import datetime, timedelta
 from io import StringIO
-from flask_paginate import Pagination, get_page_args
-from tempfile import NamedTemporaryFile
-
 
 import logging
 import traceback
 import csv
 import os
 import itertools
-
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -34,10 +27,9 @@ def require_admin(f):
     return decorated_function
 
 
-# Function to sign out students, who are not signed out after 4:30pm using APScheduler
+# Function to sign out students
 def sign_out_previous_day_students():
-    """Sign out students who signed in the previous day and haven't signed out yet."""
-    yesterday = (datetime.now() - datetime.timedelta(days=1)).date()
+    yesterday = (datetime.now() - timedelta(days=1)).date()
     sign_out_time = datetime.combine(yesterday, datetime.strptime('16:30', '%H:%M').time())
 
     students_signed_in_yesterday = SignInData.query.filter(
@@ -61,14 +53,6 @@ def sign_out_task():
         delete_old_logs()
 
 
-# Start the APScheduler for log deletion and signing students out at 4:30
-def start_scheduler():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(func=delete_old_logs, trigger="cron", hour=1, minute=0)
-    scheduler.add_job(func=sign_out_task, trigger='cron', hour=16, minute=36)
-    scheduler.start()
-
-
 # Function to create an admin to start off
 def create_admin(app):
     with app.app_context():
@@ -76,9 +60,6 @@ def create_admin(app):
         config = current_app.config
 
         ip_mapping_form = AddIPMappingForm()
-
-        if request.method == 'POST':
-            current_app.logger.debug('POST data: %s', request.form)
 
         if ip_mapping_form.validate_on_submit():
             new_ip_mapping = IPLocation(
@@ -96,17 +77,12 @@ def create_admin(app):
         # Now you can access the configuration items
         default_admin_password = config['encryption']['DEFAULT_ADMIN_PASSWORD']
         default_admin_username = config['encryption']['DEFAULT_ADMIN_USERNAME']
-        default_admin_email = config['encryption']['DEFAULT_ADMIN_EMAIL']
 
         # Check if admin user already exists
         existing_admin = User.query.filter_by(username=default_admin_username).first()
         if not existing_admin:
             # Create an admin user with a default password
-            admin_user = User(
-                username=default_admin_username,
-                email=default_admin_email,
-                is_admin=True
-            )
+            admin_user = User()
             admin_user.set_password(default_admin_password)
             db.session.add(admin_user)
             db.session.commit()
@@ -130,15 +106,14 @@ def admin_dashboard():
         return redirect(url_for('auth.login'))
 
 
-## Query Selection ##
-#####################
+# Query Selection #
+###################
 
 @admin_bp.route('/query_selection', methods=['GET', 'POST'])
 @login_required
 def query_selection():
     form = QuerySelectionForm()
     logout_form = LogoutForm()
-
     term_dates = TermDates.query.all()
 
     # Populate the term_date_range choices
@@ -164,7 +139,7 @@ def query_selection():
 
             else:
                 flash('Please specify start and end dates.', 'error')
-                return render_template('query_selection.html', form=form, logout_form=logout_form, csv_filename=None)
+                return render_template('query_selection.html', form=form, term_dates=term_dates, logout_form=logout_form, csv_filename=None)
         
         # Fetch data from DB
         data = SignInData.query.filter(
@@ -172,15 +147,26 @@ def query_selection():
             SignInData.sign_in_timestamp < end_date
         ).all()
 
+        if not data:
+            current_app.logger.debug('No data found for the selected date range.')
+            flash('No data found for the selected date range.', 'error')
+            return render_template('query_selection.html', form=form, logout_form=logout_form, term_dates=term_dates, csv_filename=None)
+
         # Generate a unique filename for the CSV
         csv_filename = f"attendance_data_{start_date.strftime('%Y-%m-%d')}_{end_date_file.strftime('%Y-%m-%d')}.csv"
 
         output = StringIO()
         writer = csv.writer(output)
         # ... writing to CSV logic ...
+        writer.writerow(
+            ["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Comments"])
+        for entry in data:
+            writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp,
+                            entry.sign_out_timestamp, entry.comments])
+        output.seek(0)
 
         # Define the path for the csv_files directory
-        csv_folder = os.path.join(current_app.root_path, 'csv_files')
+        csv_folder = os.path.join(current_app.root_path, '../csv_files')
         if not os.path.exists(csv_folder):
             os.makedirs(csv_folder)
 
@@ -200,11 +186,11 @@ def query_selection():
             flash('Form submission is invalid', 'error')
 
     # If it's a GET request or the POST request is processed, show the same query selection page without the download link
-    return render_template('query_selection.html', form=form, logout_form=logout_form, csv_filename=None)
+    return render_template('query_selection.html', form=form, term_dates=term_dates, logout_form=logout_form, csv_filename=None)
 
 
-## ADMIN USER MANAGEMENT #
-##########################
+# ADMIN USER MANAGEMENT #
+#########################
 
 @admin_bp.route('/user_management', methods=['GET', 'POST'])
 @login_required
@@ -217,10 +203,6 @@ def user_management():
     current_app.logger.debug('Users List: %s', users)
 
     ip_locations = IPLocation.query.all()
-
-    if request.method == 'POST':
-        current_app.logger.debug('POST data: %s', request.form)
-        add_user_form
 
     return render_template('user_management.html', users=users, add_user_form=add_user_form, logout_form=logout_form, form=form,
                            ip_locations=ip_locations)
@@ -236,19 +218,11 @@ def get_all_users():
 @login_required
 @require_admin
 def add_user():
-
-    # Debugging: Print the form data
-    print("Form Data Received:", request.form)
-
     username = request.form.get('username')
     email = request.form.get('email')
     password = request.form.get('password')
     is_admin = 'is_admin' in request.form
     can_set_message = 'can_set_message' in request.form
-    can_access_query_selection = 'can_access_query_selection' in request.form
-
-    # Debugging: Check the value of can_set_message
-    print("Can Set Message:", can_set_message)
 
     if not (username and email and password):
         flash('Please enter all the required fields.', 'error')
@@ -258,17 +232,17 @@ def add_user():
     if existing_user:
         flash('A user with this email or username already exists.', 'error')
     else:
-        new_user = User(
-            username=username,
-            email=email,
-            is_admin=is_admin,
-            can_set_message=can_set_message,
-            can_access_query_selection=can_access_query_selection
-        )
-        new_user.set_password(password)
-        try:
-            print("New User:", new_user)
+        # Creating a new user
+        new_user = User()
+        new_user.username = username
+        new_user.email = email
+        new_user.password = new_user.set_password(password)
+        new_user.is_admin = is_admin  # Set additional attributes
+        new_user.can_set_message = False  # Example
+        new_user.ip_location_id = False
 
+        try:
+            # Add the new user to the session and commit
             db.session.add(new_user)
             db.session.commit()
             flash('New user added successfully.', 'success')
@@ -326,10 +300,10 @@ def apply_bulk_actions():
     elif action == 'cycle_ip_mapping':
         for user_id in selected_user_ids:
             cycle_ip_mapping(user_id, redirect_enabled=False)
-    # ... handle other actions ...
 
     flash('Bulk actions applied successfully.', 'success')
     return redirect(url_for('admin.user_management'))
+
 
 @admin_bp.route('/cycle_ip_mapping/<int:user_id>', methods=['POST'])
 @login_required
@@ -363,8 +337,8 @@ def cycle_ip_mapping(user_id, redirect_enabled=True):
     return None  # Or an appropriate response when redirect is disabled
 
 
-## TERM DATES MANAGEMENT ##
-##########################
+# TERM DATES MANAGEMENT #
+#########################
 
 @admin_bp.route('/term_dates_management', methods=['GET', 'POST'])
 @login_required
@@ -398,6 +372,8 @@ def term_dates_management():
 def determine_term_name(start_date):
     month = start_date.month
     year = start_date.year
+    term_name = f'Unknown Term {year}'  # Default term name
+
     if month == 1:  # January
         term_name = f'Winter {year}'
     elif month == 3:  # March
@@ -425,10 +401,8 @@ def delete_term_date(term_date_id):
     return redirect(url_for('admin.term_dates_management'))
 
 
-
-
-## SET MESSAGE MANAGEMENT ##
-############################
+# SET MESSAGE MANAGEMENT #
+##########################
 
 @admin_bp.route('/set_message/<int:lab_location_id>', methods=['GET', 'POST'])
 @login_required
@@ -438,7 +412,7 @@ def set_message(lab_location_id):
         return redirect(url_for('admin.admin_dashboard'))
 
     form = MessageForm()
-    logout_form = LogoutForm()  # Ensure logout_form is instantiated
+    logout_form = LogoutForm()
     form.lab_location_id.choices = [(loc.id, loc.location_name) for loc in current_user.ip_locations]
 
     if form.validate_on_submit():
@@ -450,11 +424,12 @@ def set_message(lab_location_id):
         db.session.add(message)
         db.session.commit()
         flash('Your message has been posted.', 'success')
-        return redirect(url_for('admin.admin_dashboard'))
+        # Redirect with the correct lab_location_id
+        return redirect(url_for('admin.set_message', lab_location_id=form.lab_location_id.data))
 
     lab_locations = current_user.ip_locations
 
-    return render_template('set_message.html', form=form, logout_form=logout_form, lab_locations=lab_locations)
+    return render_template('set_message.html', form=form, logout_form=logout_form, lab_locations=lab_locations, lab_location_id=lab_location_id)
 
 
 @admin_bp.route('/delete_message/<int:message_id>', methods=['POST'])
@@ -508,19 +483,6 @@ def ip_management():
     add_ip_form = AddIPMappingForm()
     remove_ip_form = RemoveIPMappingForm()
     logout_form = LogoutForm()
-
-    # Inspect the attributes of the submit field
-    print("Submit field attributes:")
-    print("Label:", add_ip_form.submit.label.text)
-    print("Name:", add_ip_form.submit.name)
-    print("Data:", add_ip_form.submit.data)
-    
-    # Inspect the attributes of the remove submit field
-    print("Remove submit field attributes:")
-    print("Label:", remove_ip_form.remove_submit.label.text)
-    print("Name:", remove_ip_form.remove_submit.name)
-    print("Data:", remove_ip_form.remove_submit.data)
-    print("Form data:", request.form)  # Add this to log form data
 
     if request.method == 'POST':
         if add_ip_form.validate_on_submit():
@@ -659,13 +621,6 @@ def setup_logging(app):
     app.logger.addHandler(log_handler)
 
 
-# Function to delete logs from the logging page every 14 days using APScheduler
-def delete_old_logs():
-    threshold_date = datetime.utcnow() - datetime.timedelta(days=14)
-    LogEntry.query.filter(LogEntry.timestamp <= threshold_date).delete()
-    db.session.commit()
-
-
 @admin_bp.route('/download_csv/<filename>')
 @login_required
 @require_admin
@@ -675,7 +630,7 @@ def download_csv(filename):
         return "Invalid filename", 400
 
     # Update the path to the csv_files folder
-    csv_folder = os.path.join(current_app.root_path, 'csv_files')
+    csv_folder = os.path.join(current_app.root_path, '../csv_files')
     csv_path = os.path.join(csv_folder, filename)
     
     if os.path.exists(csv_path):

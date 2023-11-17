@@ -10,7 +10,7 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
+            <div class="alert alert-{{ category }}" id="flash-message">{{ message }}</div>
             {% endfor %}
         {% endif %}
         {% endwith %}
@@ -51,5 +51,16 @@
             </div>
         </div>
     </div>
+    <script>
+        window.onload = function() {
+          setTimeout(function() {
+            var flashMessage = document.getElementById('flash-message');
+            if (flashMessage) {
+              flashMessage.style.opacity = '0';
+              setTimeout(function() { flashMessage.style.display = 'none'; }, 500); // To sync with CSS transition
+            }
+          }, 5000); // 5000 milliseconds = 5 seconds
+        };
+      </script>
 </body>
 </html>

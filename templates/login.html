@@ -12,7 +12,7 @@
             <p>{{ flash_message }}</p>
             {% endif %}
             <div class="dashboard-header-signin">
-                <h1>Login</h1>
+                <h2>Login</h2>
             </div><br>
             <form action="{{ url_for('auth.login') }}" method="post">
                 {{ form.hidden_tag() }}

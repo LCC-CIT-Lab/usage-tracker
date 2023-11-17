@@ -44,50 +44,53 @@
             </div>
             <!-- User Table -->
             <h3>User Table</h3>
-            <form action="{{ url_for('admin.apply_bulk_actions') }}" method="post">
-                <table>
-                    <!-- Table Headers -->
-                    <thead>
-                        <tr>
-                            <th>Select</th>
-                            <th>ID</th>
-                            <th>Username</th>
-                            <th>Email</th>
-                            <th>Admin</th>
-                            <th>Can Set Message?</th>
-                            <th>IP Mapping Name</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user in users %}
-                        <tr>
-                            <td>
-                                <input type="checkbox" name="selected_users" value="{{ user.id }}">
-                            </td>
-                            <td>{{ user.id }}</td>
-                            <td>{{ user.username }}</td>
-                            <td>{{ user.email }}</td>
-                            <td>{{ "Yes" if user.is_admin else "No" }}</td>
-                            <td>{{ "Yes" if user.can_set_message else "No" }}</td>
-                            <td>
-                                <!-- List current IP mappings -->
-                                {% for ip_location in user.ip_locations %}
-                                    <div>{{ ip_location.location_name }}
-                                    </div>
-                                {% endfor %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-
-                <!-- Action Buttons -->
-                <div class="actions">
+            <!-- Action Buttons -->
+            <div class="actions">
+                <form id="user-actions-form" action="{{ url_for('admin.apply_bulk_actions') }}" method="post">
                     {{ form.hidden_tag() }}
-                    <button type="submit" name="action" value="cycle_ip_mapping">Cycle IP Mapping</button>
-                    <button type="submit" name="action" value="remove_users">Remove Selected Users</button>
-                </div>
-            </form>
+                    <input type="hidden" name="action" id="action-input">
+                    <button type="button" onclick="setActionAndSubmit('cycle_ip_mapping')">Cycle IP Mapping</button>
+                    <button type="button" onclick="setActionAndSubmit('remove_users')">Remove Selected Users</button>
+                    <!-- User Table -->
+                    <h3>User Table</h3>
+                    <div class="user-table-container" style="overflow-y: auto; max-height: 500px;">
+                        <table>
+                        <!-- Table Headers -->
+                        <thead>
+                            <tr>
+                                <th>Select</th>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Admin</th>
+                                <th>Can Set Message?</th>
+                                <th>IP Mapping Name</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>
+                                    <input type="checkbox" name="selected_users" value="{{ user.id }}">
+                                </td>
+                                <td>{{ user.id }}</td>
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.email }}</td>
+                                <td>{{ "Yes" if user.is_admin else "No" }}</td>
+                                <td>{{ "Yes" if user.can_set_message else "No" }}</td>
+                                <td>
+                                    <!-- List current IP mappings -->
+                                    {% for ip_location in user.ip_locations %}
+                                        <div>{{ ip_location.location_name }}
+                                        </div>
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </form>
+            </div>
             <br><br><br>
             <div class="button-container">
                 <div>
@@ -104,5 +107,11 @@
             </div>
         </div>
     </div>
+    <script>
+        function setActionAndSubmit(action) {
+            document.getElementById('action-input').value = action;
+            document.getElementById('user-actions-form').submit();
+        }
+    </script>
 </body>
 </html>
