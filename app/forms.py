@@ -49,7 +49,7 @@ class QuerySelectionForm(FlaskForm):
     start_date = DateField('Start Date', validators=[Optional()])
     end_date = DateField('End Date', validators=[Optional()])
     submit = SubmitField('Generate Report')
-    term_selection = SelectField('Select Term', choices=[('complete_term', 'Complete Term'), ('term_by_id', 'Term by ID')])
+    location_name = SelectField('Location or Complete Term', coerce=str, validators=[Optional()])
 
 
     def validate(self, **kwargs):

@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <title>Lab Statistics</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 40vh;
+            width: 80vw;
+            background-color: white;
+            border: 1px solid #ccc;
+            z-index: 1000;
+        }
+    </style>
 </head>
 <body>
     <div class="dashboard-container">
@@ -21,15 +36,30 @@
 
             <!-- Enhanced Stats Table -->
             <table class="stats-table">
-                <tr><td>Total Hours</td><td>{{ stats.total_hours }}</td></tr>
-                <tr><td>Average Session Duration</td><td>{{ stats.average_session_duration }}</td></tr>
-                <tr><td>Peak Hour</td><td>{{ stats.peak_hour }}</td></tr>
-                <tr><td>Busiest Day</td><td>{{ stats.busiest_day }}</td></tr>
-                <tr><td>New Students</td><td>{{ stats.new_students }}</td></tr>
-                <tr><td>Returning Students</td><td>{{ stats.returning_students }}</td></tr>
+                <tr><td>Total Hours Spent in Lab</td><td>{{ stats.total_hours }} hours</td></tr>
+                <tr><td>Average Session Duration</td><td>{{ stats.average_session_duration }} hours</td></tr>
+                <tr><td>Standard Deviation of Session Durations</td><td>{{ stats.std_deviation }} hours</td></tr>
+                <tr><td>Variance of Session Durations</td><td>{{ stats.variance }} hours²</td></tr>
+                <tr><td>Median Session Duration</td><td>{{ stats.median }} hours</td></tr>
+                <tr><td>Peak Usage Hour</td><td>{{ stats.peak_hour }}:00</td></tr>
+                <tr><td>Busiest Day of the Week</td><td>{{ stats.busiest_day }}</td></tr>
+                <tr><td>New Students Count</td><td>{{ stats.new_students }}</td></tr>
+                <tr><td>Returning Students Count</td><td>{{ stats.returning_students }}</td></tr>
                 <tr><td>Most Popular Class</td><td>{{ stats.most_popular_class }}</td></tr>
             </table>
-        </div>
+
+            <!-- Links to toggle charts -->
+            <a href="#" id="toggleHourlyChart">Show Hourly Attendance Chart</a>
+            <a href="#" id="toggleDailyChart">Show Daily Attendance Chart</a>
+
+            <!-- Chart containers -->
+            <div id="hourlyChartContainer" class="chart-container">
+                <canvas id="attendanceChart"></canvas>
+            </div>
+
+            <div id="dailyChartContainer" class="chart-container">
+                <canvas id="dailyAttendanceChart"></canvas>
+            </div>
         <div class="button-container">
             <div>
             </div>
@@ -39,5 +69,87 @@
             </div>
         </div>
     </div>
+        <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var ctx = document.getElementById('attendanceChart').getContext('2d');
+            var attendanceData = {{ stats.hourly_attendance | tojson }};
+            var hourlyAttendance = new Array(24).fill(0); // Initialize array for 24 hours
+
+            // Populate the hourlyAttendance array with your data
+            attendanceData.forEach(function(data) {
+                hourlyAttendance[data.hour] = data.attendance;
+            });
+
+            var chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Array.from({ length: 24 }, (_, i) => i), // Create labels from 0 to 23
+                    datasets: [{
+                        label: 'Hourly Attendance',
+                        data: hourlyAttendance,
+                        backgroundColor: 'rgba(0, 123, 255, 0.5)',
+                        borderColor: 'rgba(0, 123, 255, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+        // Daily Attendance Chart
+        var dailyCtx = document.getElementById('dailyAttendanceChart').getContext('2d');
+            var dailyAttendanceData = {{ stats.daily_attendance | tojson }};
+            var dailyLabels = dailyAttendanceData.map(function(data) { return data.day; });
+            var dailyAttendance = dailyAttendanceData.map(function(data) { return data.attendance; });
+
+            var dailyChart = new Chart(dailyCtx, {
+                type: 'bar',
+                data: {
+                    labels: dailyLabels,
+                    datasets: [{
+                        label: 'Daily Attendance',
+                        data: dailyAttendance,
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        });
+
+        function showChart(containerId) {
+            var container = document.getElementById(containerId);
+            container.style.display = 'block';
+
+            // Hide the chart after 5 seconds
+            setTimeout(function() {
+                container.style.display = 'none';
+            }, 5000); // 5000 milliseconds = 5 seconds
+        }
+
+        document.getElementById('toggleHourlyChart').addEventListener('click', function(event) {
+            event.preventDefault(); // Prevent default link behavior
+            showChart('hourlyChartContainer');
+        });
+
+        document.getElementById('toggleDailyChart').addEventListener('click', function(event) {
+            event.preventDefault();
+            showChart('dailyChartContainer');
+        });
+    </script>
 </body>
 </html>

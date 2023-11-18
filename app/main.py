@@ -9,7 +9,11 @@ from paramiko import util
 from .config import load_config
 from fs.sshfs import SSHFS
 from sqlalchemy import func, extract
+from collections import defaultdict
 
+
+import calendar
+import numpy as np
 import subprocess
 import os
 import csv
@@ -240,7 +244,7 @@ def process_sign_out(l_number, comment):
         current_app.logger.error('Problem with sending comment to support')
 
     if sign_in_record:
-        current_app.logger.info(f"Found sign-in record for L number {l_number}. Attempting sign-out...")
+        current_app.logger.info(f"{l_number} sign-out")
         sign_in_record.sign_out_timestamp = datetime.now()
         sign_in_record.comments = comment
         try:
@@ -592,6 +596,9 @@ def enhanced_student_stats(lab_id):
     if not current_term:
         return None
 
+    # Initialize stats dictionary
+    stats = {}
+
     # Basic stats
     sign_ins = SignInData.query.filter(
         SignInData.sign_in_timestamp.between(current_term.start_date, current_term.end_date),
@@ -603,8 +610,16 @@ def enhanced_student_stats(lab_id):
         for sign_out in sign_ins
     )
 
-    # Average session duration
-    avg_session_duration = total_hours / len(sign_ins) if sign_ins else 0
+    # Add total hours to stats
+    stats["total_hours"] = round(total_hours, 2)
+
+    # Calculate average session duration
+    if sign_ins:
+        average_session_duration = total_hours / len(sign_ins) if sign_ins else 0
+    else:
+        average_session_duration = 0
+
+    stats["average_session_duration"] = round(average_session_duration, 2)
 
     # Peak hours
     hours = db.session.query(
@@ -613,13 +628,17 @@ def enhanced_student_stats(lab_id):
     ).group_by('hour').order_by(func.count(SignInData.id).desc()).first()
     peak_hour = hours.hour if hours else None
 
-    # Day of week analysis
+    # Day of week analysis with day names
     day_of_week_counts = db.session.query(
         extract('dow', SignInData.sign_in_timestamp).label('dow'),
         func.count(SignInData.id)
     ).group_by('dow').all()
 
-    busiest_day = max(day_of_week_counts, key=lambda x: x[1])[0] if day_of_week_counts else None
+    if day_of_week_counts:
+        busiest_day_number = max(day_of_week_counts, key=lambda x: x[1])[0]
+        busiest_day = calendar.day_name[busiest_day_number - 1]  # Convert to weekday name
+    else:
+        busiest_day = None
 
     # New vs Returning students
     student_visits = db.session.query(
@@ -638,12 +657,53 @@ def enhanced_student_stats(lab_id):
 
     most_popular_class = max(class_popularity, key=lambda x: x[1])[0] if class_popularity else None
 
-    return {
-        "total_hours": round(total_hours, 2),
-        "average_session_duration": round(avg_session_duration, 2),
-        "peak_hour": peak_hour,
-        "busiest_day": busiest_day,
-        "new_students": new_students,
-        "returning_students": returning_students,
-        "most_popular_class": most_popular_class
-    }
+    # Additional calculations
+    session_durations = [
+        ((sign_out.sign_out_timestamp or datetime.now()) - sign_out.sign_in_timestamp).total_seconds() / 3600
+        for sign_out in sign_ins
+    ]
+
+    # Calculate advanced statistics
+    std_deviation = np.std(session_durations)
+    variance = np.var(session_durations)
+    median = np.median(session_durations)
+
+    # Hourly attendance calculation
+    hourly_attendance = defaultdict(int)
+    for record in sign_ins:
+        hour = record.sign_in_timestamp.hour
+        hourly_attendance[hour] += 1
+
+    # Convert to a format suitable for JSON
+    hourly_attendance_json = [
+        {"hour": hour, "attendance": round(count, 2)} for hour, count in hourly_attendance.items()
+    ]
+
+    # Daily attendance calculation with day names
+    daily_attendance = defaultdict(int)
+    for record in sign_ins:
+        day_name = calendar.day_name[record.sign_in_timestamp.weekday()]
+        daily_attendance[day_name] += 1
+
+    # Convert to a format suitable for JSON
+    daily_attendance_json = [
+        {"day": day, "attendance": round(count, 2)} for day, count in daily_attendance.items()
+    ]
+
+    # Add the calculated values to the stats dictionary
+
+    stats["daily_attendance"] = daily_attendance_json
+    stats["busiest_day"] = busiest_day
+    stats["average_session_duration"] = round(average_session_duration, 2)
+    stats["peak_hour"] = peak_hour
+    stats["busiest_day"] = busiest_day
+    stats["new_students"] = new_students
+    stats["returning_students"] = returning_students
+    stats["most_popular_class"] = most_popular_class
+    stats["std_deviation"] = round(std_deviation, 2)
+    stats["variance"] = round(variance, 2)
+    stats["median"] = round(median, 2)
+    stats["hourly_attendance"] = hourly_attendance_json
+
+    # Return the final stats dictionary
+    return stats

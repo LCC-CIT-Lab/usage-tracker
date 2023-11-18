@@ -26,14 +26,20 @@
                 <h3>Add IP Mapping</h3>
                 <form method="post" action="{{ url_for('admin.ip_management') }}">
                     {{ add_ip_form.hidden_tag() }}
-                        {{ add_ip_form.ip_address.label }}: 
-                        {{ add_ip_form.ip_address(size=10) }}
-
-                        {{ add_ip_form.location_name.label }}: 
-                        {{ add_ip_form.location_name(size=15) }}
-                    <p>{{ add_ip_form.submit() }}</p>
+                        <div>
+                            {{ add_ip_form.ip_address.label }}: 
+                            {{ add_ip_form.ip_address(size=10) }}
+                        </div>
+                        <br>
+                        <div>
+                            {{ add_ip_form.location_name.label }}: 
+                            {{ add_ip_form.location_name(size=10) }}
+                        </div>
+                        <br>
+                    {{ add_ip_form.submit() }}
                 </form>
             </div>
+            <br>
             <div>
                 <h3>Delete IP Mapping</h3>
             <form method="post" action="{{ url_for('admin.remove_ip_mapping') }}">

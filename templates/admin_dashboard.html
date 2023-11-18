@@ -26,9 +26,9 @@
                 <li>- <a href="{{ url_for('admin.query_selection') }}" autofocus=true>Query Selection</a></li>
                 {% if is_admin %}
                 <!-- Only display this part to admin users -->
-                <li>- <a href="{{ url_for('admin.ip_management') }}">IP Management</a></li>
+                <li>- <a href="{{ url_for('admin.ip_management') }}">IP Station to Location Name Mapping</a></li>
                 <li>- <a href="{{ url_for('admin.term_dates_management') }}">Term Dates Management</a></li>
-                <li>- <a href="{{ url_for('admin.user_management') }}">User Management</a></li>
+                <li>- <a href="{{ url_for('admin.user_management') }}">Admin User Management</a></li>
                 <li>- <a href="{{ url_for('admin.view_logs') }}">View Logs</a></li>
                 {% endif %}
                 <li>

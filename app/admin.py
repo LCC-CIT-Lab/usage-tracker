@@ -6,6 +6,7 @@ from app.forms import LoginForm, LogoutForm, AddUserForm, MessageForm, QuerySele
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash
 from io import StringIO
 
 import logging
@@ -65,33 +66,28 @@ def create_admin(app):
         # Load the configuration
         config = current_app.config
 
-        ip_mapping_form = AddIPMappingForm()
-
-        if ip_mapping_form.validate_on_submit():
-            new_ip_mapping = IPLocation(
-                ip=ip_mapping_form.ip.data,
-                location_name=ip_mapping_form.location_name.data
-            )
-            db.session.add(new_ip_mapping)
-            try:
-                db.session.commit()
-                flash('New IP mapping added.', 'success')
-            except Exception as e:
-                db.session.rollback()
-                flash(f'An error occurred: {e}', 'error')
-
-        # Now you can access the configuration items
         default_admin_password = config['encryption']['DEFAULT_ADMIN_PASSWORD']
         default_admin_username = config['encryption']['DEFAULT_ADMIN_USERNAME']
+        default_admin_email = config['encryption']['DEFAULT_ADMIN_EMAIL']
 
         # Check if admin user already exists
         existing_admin = User.query.filter_by(username=default_admin_username).first()
         if not existing_admin:
-            # Create an admin user with a default password
-            admin_user = User()
+            # Create an admin user with default credentials
+            admin_user = User(
+                username=default_admin_username, 
+                email=default_admin_email
+            )
             admin_user.set_password(default_admin_password)
+            admin_user.is_admin = True  # Set as admin
+            # ... set other fields if necessary
+
             db.session.add(admin_user)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f"Error creating admin user: {e}")
 
 
 # Function to sign in to the admin dashboard
@@ -122,56 +118,48 @@ def query_selection():
     logout_form = LogoutForm()
     term_dates = TermDates.query.all()
 
+    # Populate term date range choices
     form.term_date_range.choices = [(0, 'Select Term Date Range')] + [
         (td.id, f"{td.term_name}: {td.start_date.strftime('%Y-%m-%d')} to {td.end_date.strftime('%Y-%m-%d')}")
         for td in term_dates
     ]
 
+    # Populate location choices with "Complete Term" option
+    user_ip_locations = IPLocation.query.filter(
+        IPLocation.mapped_users.any(User.id == current_user.id)
+    ).all()
+    form.location_name.choices = [('Complete Term', 'Complete Term')] + \
+                                 [(loc.location_name, loc.location_name) for loc in user_ip_locations]
+
+    data = None  # Initialize data to None
+
     if form.validate_on_submit():
-        data = None  # Initialize data here
-        start_date, end_date = None, None
-        
-        # Retrieve the current user's associated IP locations
-        user_ip_locations = [location.id for location in current_user.ip_locations]
+        term_date = TermDates.query.get(form.term_date_range.data)
 
-        if form.term_selection.data == 'complete_term':
-            # Fetch all data for all locations
-            data = SignInData.query.all()
+        if term_date:
+            start_date = term_date.start_date
+            end_date = term_date.end_date + timedelta(days=1)
+            location_name = form.location_name.data
 
-        elif form.term_selection.data == 'term_by_id':
-            # Fetch data for current user's lab location
-            term_date = TermDates.query.get(form.term_date_range.data)
-            if term_date:
-                start_date = term_date.start_date
-                end_date = term_date.end_date + timedelta(days=1)
-
-                # Retrieve the current user's associated IP location
-                user_ip_location_id = current_user.ip_location_id
-
-                # Filter data based on the user's IP location
+            if location_name == 'Complete Term':
+                data = SignInData.query.filter(
+                    SignInData.sign_in_timestamp.between(start_date, end_date)
+                ).all()
+            else:
                 data = SignInData.query.filter(
                     SignInData.sign_in_timestamp.between(start_date, end_date),
-                    SignInData.ip_location_id == user_ip_location_id
+                    SignInData.ip_location.has(IPLocation.location_name == location_name)
                 ).all()
-
-        if not start_date or not end_date:
-            start_date = form.start_date.data
-            end_date = form.end_date.data + timedelta(days=1)
-            data = SignInData.query.filter(
-                SignInData.sign_in_timestamp.between(start_date, end_date)
-            ).all()
-
-        if not data:
-            flash('No data found for the selected date range.', 'error')
-        else:
+        
+        if data:
             # Generate CSV
-            csv_filename = f"attendance_data_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.csv"
+            csv_filename = f"attendance_data_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
             output = StringIO()
             writer = csv.writer(output)
             writer.writerow(["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Comments"])
             for entry in data:
                 writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp,
-                                entry.sign_out_timestamp, entry.comments])
+                                 entry.sign_out_timestamp, entry.comments])
             output.seek(0)
 
             # Save CSV data
@@ -195,6 +183,16 @@ def query_selection():
 @login_required
 @require_admin
 def user_management():
+    
+    # Clear the session variable when the page loads
+    session.pop('last_selected_user_id', None)
+
+    if request.method == 'POST':
+        selected_user_id = request.form.get('selected_user')
+        session['last_selected_user_id'] = selected_user_id
+    else:
+        selected_user_id = session.get('last_selected_user_id')
+
     form = LoginForm()
     logout_form = LogoutForm()
     add_user_form = AddUserForm()
@@ -203,7 +201,8 @@ def user_management():
 
     ip_locations = IPLocation.query.all()
 
-    return render_template('user_management.html', users=users, add_user_form=add_user_form, logout_form=logout_form, form=form,
+
+    return render_template('user_management.html', users=users, selected_user_id=selected_user_id, add_user_form=add_user_form, logout_form=logout_form, form=form,
                            ip_locations=ip_locations)
 
 
@@ -279,61 +278,42 @@ def remove_user(user_id, redirect_enabled=True):
     return redirect(url_for('admin.user_management'))
 
 
-@admin_bp.route('/apply_bulk_actions', methods=['POST'])
+@admin_bp.route('/apply_user_actions', methods=['POST'])
 @login_required
 @require_admin
-def apply_bulk_actions():
-    selected_user_ids = request.form.getlist('selected_users')
+def apply_user_actions():
+    selected_user_id = request.form.get('selected_user')
     action = request.form.get('action')
 
-    if not selected_user_ids:
-        flash('No users selected.', 'error')
+    if not selected_user_id:
+        flash('No user selected.', 'error')
         return redirect(url_for('admin.user_management'))
 
-    if action == 'toggle_message':
-        for user_id in selected_user_ids:
-            toggle_message_permission(user_id, redirect_enabled=False)
-    elif action == 'remove_users':
-        for user_id in selected_user_ids:
-            remove_user(user_id, redirect_enabled=False)
-    elif action == 'cycle_ip_mapping':
-        for user_id in selected_user_ids:
-            cycle_ip_mapping(user_id, redirect_enabled=False)
+    # Store the last selected user ID in session
+    session['last_selected_user_id'] = selected_user_id
 
-    flash('Bulk actions applied successfully.', 'success')
+    user = User.query.get(selected_user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('admin.user_management'))
+
+    if action == 'delete_user':
+        delete_user(user)
+    else:
+        flash('Invalid action.', 'error')
+
     return redirect(url_for('admin.user_management'))
 
 
-@admin_bp.route('/cycle_ip_mapping/<int:user_id>', methods=['POST'])
-@login_required
-@require_admin
-def cycle_ip_mapping(user_id, redirect_enabled=True):
-    user = User.query.get_or_404(user_id)
-    
-    all_ip_ids = [ip.id for ip in IPLocation.query.all()]
-    current_mappings = set([ip.id for ip in user.ip_locations])
-    all_combinations = sum([list(itertools.combinations(all_ip_ids, i)) for i in range(len(all_ip_ids) + 1)], [])
-    
-    # Find the index of the current combination
-    current_index = next((idx for idx, comb in enumerate(all_combinations) if set(comb) == current_mappings), -1)
-    
-    # Calculate the index of the next combination
-    next_index = (current_index + 1) % len(all_combinations)
-    
-    # Update the user's IP mappings
-    user.ip_locations = [IPLocation.query.get(ip_id) for ip_id in all_combinations[next_index]]
-
-    # Enable/disable message permission based on IP mapping
-    user.can_set_message = bool(user.ip_locations)
-    
-    db.session.commit()
-    
-    flash('User IP mapping updated successfully.', 'success')
-
-    if redirect_enabled:
-        return redirect(url_for('admin.user_management'))
-
-    return None  # Or an appropriate response when redirect is disabled
+def delete_user(user):
+    try:
+        LabMessage.query.filter_by(user_id=user.id).delete()
+        db.session.delete(user)
+        db.session.commit()
+        flash('User removed successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error removing user: {e}', 'error')
 
 
 # TERM DATES MANAGEMENT #
@@ -386,18 +366,26 @@ def determine_term_name(start_date):
     return term_name
 
 
-@admin_bp.route('/delete_term_date/<int:term_date_id>', methods=['POST'])
+@admin_bp.route('/delete_term_date', methods=['POST'])
 @login_required
 @require_admin
-def delete_term_date(term_date_id):
-    term_date = TermDates.query.get_or_404(term_date_id)
-    try:
-        db.session.delete(term_date)
-        db.session.commit()
-        flash('Term date deleted successfully.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'An error occurred: {e}', 'error')
+def delete_term_date():
+    term_date_id = request.form.get('term_date_id')
+    if not term_date_id:
+        flash('No term date selected.', 'error')
+        return redirect(url_for('admin.term_dates_management'))
+
+    term_date = TermDates.query.get(term_date_id)
+    if not term_date:
+        flash('Term date not found.', 'error')
+    else:
+        try:
+            db.session.delete(term_date)
+            db.session.commit()
+            flash('Term date deleted successfully.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'An error occurred: {e}', 'error')
 
     return redirect(url_for('admin.term_dates_management'))
 
@@ -566,26 +554,27 @@ def ip_management():
     return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form, logout_form=logout_form, ip_mappings=ip_locations)
 
 
-@admin_bp.route('/update_user_ip_mapping/<int:user_id>', methods=['POST'])
+@admin_bp.route('/admin/assign_ip_mappings', methods=['POST'])
 @login_required
 @require_admin
-def update_user_ip_mapping(user_id):
-    user = User.query.get_or_404(user_id)
-    
-    # Get all IP mappings
-    ip_mappings = [None] + [ip.id for ip in IPLocation.query.all()]
-    
-    # Find current mapping index
-    current_index = ip_mappings.index(user.ip_location_id) if user.ip_location_id in ip_mappings else -1
-    
-    # Calculate next index
-    next_index = (current_index + 1) % len(ip_mappings)
-    
-    # Update user's IP mapping
-    user.ip_location_id = ip_mappings[next_index]
+def assign_ip_mappings():
+    selected_user_id = request.form.get('selected_user_id')
+    selected_ip_mappings_ids = request.form.getlist('selected_ip_mappings')
+
+    user = User.query.get_or_404(selected_user_id)
+
+    # Clear existing IP mappings for the user
+    user.ip_locations.clear()
+
+    # Assign new IP mappings
+    for ip_id in selected_ip_mappings_ids:
+        ip_location = IPLocation.query.get(ip_id)
+        if ip_location:
+            user.ip_locations.append(ip_location)
+
     db.session.commit()
-    
-    flash('User IP mapping updated successfully.', 'success')
+
+    flash('IP mappings updated successfully.', 'success')
     return redirect(url_for('admin.user_management'))
 
 
@@ -636,6 +625,15 @@ def remove_ip_mapping():
         flash('Form validation error.', 'error')
 
     return redirect(url_for('admin.ip_management'))
+
+
+@admin_bp.route('/get_user_ip_mappings/<int:user_id>')
+@login_required
+@require_admin
+def get_user_ip_mappings(user_id):
+    user = User.query.get_or_404(user_id)
+    assigned_ips = [ip_location.id for ip_location in user.ip_locations]
+    return jsonify(assigned_ips)
 
 
 ## LOG DATA PAGE ##

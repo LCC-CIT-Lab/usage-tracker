@@ -5,6 +5,19 @@
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
+    <script>
+        function updateDates() {
+            var selectedTermId = document.getElementById("termToDelete").value;
+            var dates = selectedTermId.split("-");
+            if(dates.length === 2) {
+                document.getElementById("start_date_display").textContent = dates[0];
+                document.getElementById("end_date_display").textContent = dates[1];
+            } else {
+                document.getElementById("start_date_display").textContent = "";
+                document.getElementById("end_date_display").textContent = "";
+            }
+        }
+    </script>
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
@@ -34,26 +47,16 @@
             <!-- List existing term dates -->
             <table>
                 <h3>Delete Term Date</h3>
-
-                <tr>
-                    <th>Term Name</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
-                    <th>Actions</th>
-                </tr>
-                {% for term_date in term_dates %}
-                <tr>
-                    <td>{{ term_date.term_name }}</td>
-                    <td>{{ term_date.start_date.strftime('%Y-%m-%d') }}</td>
-                    <td>{{ term_date.end_date.strftime('%Y-%m-%d') }}</td>
-                    <td>
-                        <form action="{{ url_for('admin.delete_term_date', term_date_id=term_date.id) }}" method="post">
-                            {{ logout_form.hidden_tag() }}
-                            <input type="submit" value="Delete" onclick="return confirm('Are you sure?');">
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
+                <!-- Dropdown for selecting term date to delete -->
+                <form action="{{ url_for('admin.delete_term_date') }}" method="post">
+                    {{ logout_form.hidden_tag() }}
+                    <select name="term_date_id" id="term_date_id">
+                        {% for term_date in term_dates %}
+                        <option value="{{ term_date.id }}">{{ term_date.term_name }}: {{ term_date.start_date.strftime('%Y-%m-%d') }} to {{ term_date.end_date.strftime('%Y-%m-%d') }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="submit" style="background-color: #e01010;" value="Delete" onclick="return confirm('Are you sure?');">
+                </form>
             </table>
             <br><br><br>
             <div class="button-container">

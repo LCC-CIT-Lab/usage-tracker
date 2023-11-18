@@ -71,13 +71,14 @@
                         <span style="color: red;">[{{ error }}]</span>
                     {% endfor %}
                 </div>
+                <div>
+                <!-- Inside the form in query_selection.html -->
                 <div class="form-group">
-                    {{ form.term_selection.label }} {{ form.term_selection }}
-                    {% for error in form.term_selection.errors %}
+                    {{ form.location_name.label }} {{ form.location_name }}
+                    {% for error in form.location_name.errors %}
                         <span style="color: red;">[{{ error }}]</span>
                     {% endfor %}
                 </div>
-                <div>
                     <br>{{ form.submit }}
                 </div>
                 <br>

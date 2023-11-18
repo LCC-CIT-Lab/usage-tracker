@@ -7,22 +7,58 @@
     <script>
         // When the DOM is fully loaded
         document.addEventListener("DOMContentLoaded", function() {
-            // Restore checkbox states
-            document.querySelectorAll("input[name='selected_users']").forEach(function(checkbox) {
-                const isChecked = localStorage.getItem(checkbox.value) === 'true';
-                checkbox.checked = isChecked;
-            });
+            // Combine related functionalities under a single event listener
+            // Restore last selected user
+            const lastSelectedUserId = localStorage.getItem('lastSelectedUserId');
+            const userSelect = document.getElementById('selected_user');
+            if (lastSelectedUserId && userSelect) {
+                userSelect.value = lastSelectedUserId;
+                updateUserIpSelections(); // Update IP selections for the initially selected user
+            }
     
-            // Save checkbox states on change
-            document.querySelectorAll("input[name='selected_users']").forEach(function(checkbox) {
-                checkbox.addEventListener('change', function() {
-                    localStorage.setItem(checkbox.value, checkbox.checked);
+            // Add event listener to user selection dropdown
+            if (userSelect) {
+                userSelect.addEventListener('change', function() {
+                    const selectedUserId = this.value;
+                    localStorage.setItem('lastSelectedUserId', selectedUserId); // Store selected user ID
+                    updateUserIpSelections(); // Update IP selections
                 });
-            });
+            }
         });
-    </script>    
+    
+        function updateUserIpSelections() {
+            // Fetch and update IP mapping selections based on the selected user
+            const selectedUserId = document.getElementById('selected_user').value;
+            const baseUrl = document.getElementById('base-url').dataset.getUserIpMappingsUrl;
+            const url = baseUrl.replace('/0', '/' + selectedUserId);
+    
+            fetch(url)
+                .then(response => response.json())
+                .then(assignedIps => {
+                    const ipSelectBox = document.getElementById('selected_ip_mappings');
+                    Array.from(ipSelectBox.options).forEach(option => {
+                        option.selected = assignedIps.includes(parseInt(option.value));
+                    });
+                })
+                .catch(error => console.error('Error fetching user IP mappings:', error));
+        }
+    
+        function assignIpMappings() {
+            // Submit IP mapping form with the selected user ID
+            const selectedUserId = document.getElementById('selected_user').value;
+            document.getElementById('selected_user_id').value = selectedUserId;
+            const form = document.getElementById('ip-mapping-form');
+            if (form) {
+                form.submit();
+            } else {
+                console.error('IP mapping form not found');
+            }
+        }
+    </script>
 </head>
 <body>
+    <div id="base-url" data-get-user-ip-mappings-url="{{ url_for('admin.get_user_ip_mappings', user_id='0') }}" style="display:none;"></div>
+
     <div class="dashboard-container">
         <div class="dashboard-header">
             <div class="dashboard-header-signin">
@@ -42,60 +78,42 @@
                     <button type="submit" class="form-button">Add User</button>
                 </form>
             </div>
-            <!-- User Table -->
-            <h3>User Table</h3>
-            <!-- Action Buttons -->
-            <div class="actions">
-                <form id="user-actions-form" action="{{ url_for('admin.apply_bulk_actions') }}" method="post">
-                    {{ form.hidden_tag() }}
-                    <input type="hidden" name="action" id="action-input">
-                    <button type="button" onclick="setActionAndSubmit('cycle_ip_mapping')">Cycle IP Mapping</button>
-                    <button type="button" onclick="setActionAndSubmit('remove_users')">Remove Selected Users</button>
-                    <div class="user-table-container" style="overflow-y: auto; max-height: 500px;">
-                        <table>
-                        <!-- Table Headers -->
-                        <thead>
-                            <tr>
-                                <th>Select</th>
-                                <th>ID</th>
-                                <th>Username</th>
-                                <th>Email</th>
-                                <th>Admin</th>
-                                <th>Can Set Message?</th>
-                                <th>IP Mapping Name</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for user in users %}
-                            <tr>
-                                <td>
-                                    <input type="checkbox" name="selected_users" value="{{ user.id }}">
-                                </td>
-                                <td>{{ user.id }}</td>
-                                <td>{{ user.username }}</td>
-                                <td>{{ user.email }}</td>
-                                <td>{{ "Yes" if user.is_admin else "No" }}</td>
-                                <td>{{ "Yes" if user.can_set_message else "No" }}</td>
-                                <td>
-                                    <!-- List current IP mappings -->
-                                    {% for ip_location in user.ip_locations %}
-                                        <div>{{ ip_location.location_name }}
-                                        </div>
-                                    {% endfor %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </form>
-            </div>
-            <br><br><br>
-            <div class="button-container">
+            <div>   
+                <!-- User Table -->
+                <h3>Select a User and Location Assignment</h3>
+                <!-- User Management Form -->
                 <div>
-                    <!-- Back Button -->
+                    <!-- User Selection Dropdown -->
+                        <select name="selected_user" id="selected_user">
+                                {% for user in users %}
+                                <option value="{{ user.id }}">{{ user.username }} - {{ user.email }}</option>
+                                {% endfor %}
+                        </select>
+                    <br>
+                    <!-- IP Mapping Form -->
+                    <form id="ip-mapping-form" action="{{ url_for('admin.assign_ip_mappings') }}" method="post">
+                        {{ form.hidden_tag() }}
+                        <!-- IP Mapping Selections -->
+                        <select name="selected_ip_mappings" id="selected_ip_mappings" multiple size="5">
+                            {% for ip_location in ip_locations %}
+                            <option value="{{ ip_location.id }}">{{ ip_location.location_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <!-- Hidden field for selected user ID -->
+                        <input type="hidden" name="selected_user_id" id="selected_user_id">
+                        <div>
+                            <button type="button" class="button" onclick="assignIpMappings()">Assign IP Mappings</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <br><br>
+            <div class="button-container">
+                <!-- Back Button -->
+                <div>
                     <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
                 </div>
-                    <!-- Logout Button -->
+                <!-- Logout Button -->
                 <div>
                     <form action="{{ url_for('auth.logout') }}" method="post">
                         {{ logout_form.hidden_tag() }}
@@ -105,11 +123,5 @@
             </div>
         </div>
     </div>
-    <script>
-        function setActionAndSubmit(action) {
-            document.getElementById('action-input').value = action;
-            document.getElementById('user-actions-form').submit();
-        }
-    </script>
 </body>
 </html>
