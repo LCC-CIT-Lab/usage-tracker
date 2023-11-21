@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, session, send_file
 from flask_login import login_required, current_user
 from app.utils import delete_old_logs, get_lab_info
-from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage, SignInData
-from app.forms import LoginForm, LogoutForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, UploadCSVForm, TermDatesForm
+from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage, SignInData, EmailTemplate
+from app.forms import LoginForm, LogoutForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, UploadCSVForm, TermDatesForm, ManageEmailsForm
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
@@ -99,10 +99,14 @@ def admin_dashboard():
     lab_info = get_lab_info(request.remote_addr)
     lab_location_name, lab_location_id = lab_info  # Unpack the tuple
 
+    # Fetch the default lab ID
+    default_lab = IPLocation.query.first()
+    default_lab_id = default_lab.id if default_lab else None
+
     if current_user.is_authenticated:
         # Pass the is_admin variable and the IPLocation instance to the template
         return render_template('admin_dashboard.html', is_admin=current_user.is_admin, logout_form=logout_form,
-                               lab_location_id=lab_location_id)
+                               lab_location_id=lab_location_id, default_lab_id=default_lab_id)
     else:
         flash('Please log in with an admin account to access this page.', 'error')
         return redirect(url_for('auth.login'))
@@ -221,6 +225,8 @@ def add_user():
     password = request.form.get('password')
     is_admin = 'is_admin' in request.form
     can_set_message = 'can_set_message' in request.form
+    can_manage_email = 'can_manage_email' in request.form
+
 
     if not (username and email and password):
         flash('Please enter all the required fields.', 'error')
@@ -237,7 +243,7 @@ def add_user():
         new_user.password = new_user.set_password(password)
         new_user.is_admin = is_admin  # Set additional attributes
         new_user.can_set_message = False  # Example
-        new_user.ip_location_id = False
+        new_user.can_manage_email = can_manage_email
 
         try:
             # Add the new user to the session and commit
@@ -559,23 +565,25 @@ def ip_management():
 @require_admin
 def assign_ip_mappings():
     selected_user_id = request.form.get('selected_user_id')
-    selected_ip_mappings_ids = request.form.getlist('selected_ip_mappings')
-
     user = User.query.get_or_404(selected_user_id)
 
-    # Clear existing IP mappings for the user
+    # Update user's IP mappings
+    selected_ip_mappings_ids = request.form.getlist('selected_ip_mappings')
     user.ip_locations.clear()
-
-    # Assign new IP mappings
     for ip_id in selected_ip_mappings_ids:
         ip_location = IPLocation.query.get(ip_id)
         if ip_location:
             user.ip_locations.append(ip_location)
 
-    db.session.commit()
+    # Toggle permissions
+    user.can_set_message = 'can_set_message' in request.form
+    user.can_manage_email = 'can_manage_email' in request.form
 
-    flash('IP mappings updated successfully.', 'success')
+    db.session.commit()
+    flash('User settings updated successfully.', 'success')
     return redirect(url_for('admin.user_management'))
+
+
 
 
 @admin_bp.route('/remove_user_ip_mapping/<int:user_id>', methods=['POST'])
@@ -586,8 +594,6 @@ def remove_user_ip_mapping(user_id):
     if not user:
         flash('User not found.', 'error')
     else:
-        # Set the user's IP mapping to None
-        user.ip_location_id = None
         db.session.commit()
         flash('User IP mapping removed successfully.', 'success')
 
@@ -633,7 +639,14 @@ def remove_ip_mapping():
 def get_user_ip_mappings(user_id):
     user = User.query.get_or_404(user_id)
     assigned_ips = [ip_location.id for ip_location in user.ip_locations]
-    return jsonify(assigned_ips)
+
+    # Add the user's message and email permission states to the response
+    user_details = {
+        'assignedIps': assigned_ips,
+        'canSetMessage': user.can_set_message,
+        'canManageEmail': user.can_manage_email
+    }
+    return jsonify(user_details)
 
 
 ## LOG DATA PAGE ##
@@ -722,3 +735,83 @@ def download_logs():
         current_app.logger.error(f"Error in downloading logs: {e}")
         flash('Log file not found', 'error')
         return redirect(url_for('admin.view_logs'))
+    
+# Welcome Email Management #
+############################
+
+@admin_bp.route('/manage_emails/<int:lab_id>', methods=['GET', 'POST'])
+@login_required
+@require_admin
+def manage_emails(lab_id):
+    form = ManageEmailsForm()
+    logout_form = LogoutForm()
+    lab_location = IPLocation.query.get_or_404(lab_id)
+    email_template = lab_location.email_template
+
+    if request.method == 'POST' and form.validate_on_submit():
+        if email_template:
+            email_template.subject = form.subject.data
+            email_template.body = form.body.data
+        else:
+            email_template = EmailTemplate(subject=form.subject.data, body=form.body.data, lab_location_id=lab_id)
+            db.session.add(email_template)
+
+        # Update the welcome_email_enabled status
+        lab_location.welcome_email_enabled = 'enable_email' in request.form
+        db.session.commit()
+        flash('Email settings updated successfully', 'success')
+        return redirect(url_for('admin.manage_emails', lab_id=lab_id))
+
+    if email_template:
+        form.subject.data = email_template.subject
+        form.body.data = email_template.body
+
+    enable_email = lab_location.welcome_email_enabled if lab_location else False
+    return render_template('manage_emails.html', form=form, logout_form=logout_form, lab_location=lab_location, lab_id=lab_id, enable_email=lab_location.welcome_email_enabled)
+
+
+@admin_bp.route('/get_user_details/<int:user_id>')
+@login_required
+@require_admin
+def get_user_details(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    assigned_ips = [ip_location.id for ip_location in user.ip_locations]
+    return jsonify({
+        'assignedIps': assigned_ips, 
+        'enableWelcomeEmail': user.can_send_welcome_email
+    })
+
+
+@admin_bp.route('/toggle_email_permission/<int:user_id>', methods=['POST'])
+@login_required
+@require_admin
+def toggle_email_permission(user_id):
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    user.can_manage_email = not user.can_manage_email
+    db.session.commit()
+    flash(f'Email management permission for {user.username} toggled.', 'success')
+    return redirect(url_for('admin.user_management'))
+
+
+@admin_bp.route('/update_user_settings/<int:user_id>', methods=['POST'])
+@login_required
+@require_admin
+def update_user_settings(user_id):
+    user = User.query.get_or_404(user_id)
+    data = request.json
+
+    user.can_set_message = data['canSetMessage']
+    user.can_manage_email = data['canManageEmail']
+
+    try:
+        db.session.commit()
+        return jsonify({'message': 'User settings updated successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

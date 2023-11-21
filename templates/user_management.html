@@ -4,57 +4,6 @@
     <meta charset="UTF-8">
     <title>User Management</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <script>
-        // When the DOM is fully loaded
-        document.addEventListener("DOMContentLoaded", function() {
-            // Combine related functionalities under a single event listener
-            // Restore last selected user
-            const lastSelectedUserId = localStorage.getItem('lastSelectedUserId');
-            const userSelect = document.getElementById('selected_user');
-            if (lastSelectedUserId && userSelect) {
-                userSelect.value = lastSelectedUserId;
-                updateUserIpSelections(); // Update IP selections for the initially selected user
-            }
-    
-            // Add event listener to user selection dropdown
-            if (userSelect) {
-                userSelect.addEventListener('change', function() {
-                    const selectedUserId = this.value;
-                    localStorage.setItem('lastSelectedUserId', selectedUserId); // Store selected user ID
-                    updateUserIpSelections(); // Update IP selections
-                });
-            }
-        });
-    
-        function updateUserIpSelections() {
-            // Fetch and update IP mapping selections based on the selected user
-            const selectedUserId = document.getElementById('selected_user').value;
-            const baseUrl = document.getElementById('base-url').dataset.getUserIpMappingsUrl;
-            const url = baseUrl.replace('/0', '/' + selectedUserId);
-    
-            fetch(url)
-                .then(response => response.json())
-                .then(assignedIps => {
-                    const ipSelectBox = document.getElementById('selected_ip_mappings');
-                    Array.from(ipSelectBox.options).forEach(option => {
-                        option.selected = assignedIps.includes(parseInt(option.value));
-                    });
-                })
-                .catch(error => console.error('Error fetching user IP mappings:', error));
-        }
-    
-        function assignIpMappings() {
-            // Submit IP mapping form with the selected user ID
-            const selectedUserId = document.getElementById('selected_user').value;
-            document.getElementById('selected_user_id').value = selectedUserId;
-            const form = document.getElementById('ip-mapping-form');
-            if (form) {
-                form.submit();
-            } else {
-                console.error('IP mapping form not found');
-            }
-        }
-    </script>
 </head>
 <body>
     <div id="base-url" data-get-user-ip-mappings-url="{{ url_for('admin.get_user_ip_mappings', user_id='0') }}" style="display:none;"></div>
@@ -75,36 +24,59 @@
                     <div class="checkbox-group">
                         <label><input type="checkbox" name="is_admin"> Admin?</label>
                     </div>
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" id="toggle-message-permission"> Can Set Message?
+                        </label>
+                    </div>
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" id="toggle-email-permission"> Can Manage Email?
+                        </label>
+                    </div>    
                     <button type="submit" class="form-button">Add User</button>
                 </form>
             </div>
-            <div>   
+            <div>
                 <!-- User Table -->
                 <h3>Select a User and Location Assignment</h3>
                 <!-- User Management Form -->
                 <div>
-                    <!-- User Selection Dropdown -->
-                        <select name="selected_user" id="selected_user">
-                                {% for user in users %}
-                                <option value="{{ user.id }}">{{ user.username }} - {{ user.email }}</option>
-                                {% endfor %}
-                        </select>
-                    <br>
-                    <!-- IP Mapping Form -->
-                    <form id="ip-mapping-form" action="{{ url_for('admin.assign_ip_mappings') }}" method="post">
-                        {{ form.hidden_tag() }}
-                        <!-- IP Mapping Selections -->
-                        <select name="selected_ip_mappings" id="selected_ip_mappings" multiple size="5">
-                            {% for ip_location in ip_locations %}
-                            <option value="{{ ip_location.id }}">{{ ip_location.location_name }}</option>
-                            {% endfor %}
-                        </select>
-                        <!-- Hidden field for selected user ID -->
-                        <input type="hidden" name="selected_user_id" id="selected_user_id">
-                        <div>
-                            <button type="button" class="button" onclick="assignIpMappings()">Assign IP Mappings</button>
-                        </div>
-                    </form>
+                <!-- User Selection Form -->
+                <form method="POST" action="{{ url_for('admin.user_management') }}">
+                    {{ form.hidden_tag() }}  <!-- Include CSRF token -->
+                    <select name="selected_user" id="selected_user">
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.username }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="submit" value="Select User">
+                </form>
+
+                <!-- IP Mapping and Permissions Form -->
+                <form method="POST" action="{{ url_for('admin.assign_ip_mappings') }}">
+                    {{ form.hidden_tag() }}  <!-- Include CSRF token -->
+                    <input type="hidden" name="selected_user_id" value="{{ selected_user_id }}">
+                    
+                    <!-- IP Mappings -->
+                    <select name="selected_ip_mappings" multiple>
+                        {% for ip_location in ip_locations %}
+                        <option value="{{ ip_location.id }}">{{ ip_location.location_name }}</option>
+                        {% endfor %}
+                    </select>
+                    
+                    <!-- Toggle Permissions -->
+                    <label>
+                        <input type="checkbox" name="can_set_message" {% if user_can_set_message %} checked {% endif %}>
+                        Can Set Message
+                    </label>
+                    <label>
+                        <input type="checkbox" name="can_manage_email" {% if user_can_manage_email %} checked {% endif %}>
+                        Can Manage Email
+                    </label>
+
+                    <input type="submit" value="Update Settings">
+                </form>
                 </div>
             </div>
             <br><br>

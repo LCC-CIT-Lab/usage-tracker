@@ -38,6 +38,13 @@
                     - <span>Set Message (Unavailable)</span>
                     {% endif %}
                 </li>
+                <li>
+                    {% if current_user.can_manage_email %}
+                    <a href="{{ url_for('admin.manage_emails', lab_id=default_lab_id) }}">Manage Emails</a>
+                    {% else %}
+                    - <span>Manage Emails (Unavailable)</span>
+                    {% endif %}
+                </li>
             </ul>
             <br><br><br>
             <div class="button-containerdashboard">

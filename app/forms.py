@@ -92,4 +92,7 @@ class MessageForm(FlaskForm):
     submit = SubmitField('Post Message')
 
 
-# ... Add other form classes as needed
+class ManageEmailsForm(FlaskForm):
+    subject = StringField('Subject', validators=[DataRequired()])
+    body = TextAreaField('Body', validators=[DataRequired()])
+    submit = SubmitField('Save Changes')

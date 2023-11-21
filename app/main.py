@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, render_template, request, redirect, url_fo
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 from datetime import datetime, time
 from email.mime.text import MIMEText
-from app.models import db, SignInData, IPLocation, TermDates, LabMessage
+from app.models import db, SignInData, IPLocation, TermDates, LabMessage, User
 from app.forms import LandingForm, SignInForm, SignOutForm
 from app.utils import get_lab_info, delete_old_logs
 from paramiko import util
@@ -75,6 +75,15 @@ def landing():
 
         # Proceed if valid student L number
         session['l_number'] = l_number
+
+        # Check if it's the first visit
+        first_visit = SignInData.query.filter_by(l_number=l_number).count() == 0
+        if first_visit:
+            if lab_location and lab_location.welcome_email_enabled:
+                send_welcome_email(l_number, lab_id)
+                current_app.logger.info("Sending welcome email.")
+            else:
+                current_app.logger.info("Welcome email disabled for this location.")
 
         action = choosesignout(l_number)
         if action == 'sign_out':
@@ -184,7 +193,6 @@ def sign_in():
                 lab_location=lab_location_name,
                 class_selected=class_selected,
                 sign_in_timestamp=datetime.now(),
-                ip_location_id=lab_id
             )
 
             db.session.add(sign_in_data)
@@ -357,8 +365,13 @@ def process_sign_in(l_number, lab_location_name, class_selected, lab_id):
         lab_location=lab_location_name,
         class_selected=class_selected,
         sign_in_timestamp=datetime.now(),
-        ip_location_id=lab_id
     )
+
+    # Retrieve the user's IP locations
+    user = User.query.filter_by(l_number=l_number).first()
+    if user:
+        sign_in_data.ip_locations = user.ip_locations
+
     db.session.add(sign_in_data)
     db.session.commit()
 
@@ -707,3 +720,44 @@ def enhanced_student_stats(lab_id):
 
     # Return the final stats dictionary
     return stats
+
+
+def send_welcome_email(l_number, lab_id):
+    lab_location = IPLocation.query.get(lab_id)
+    if not lab_location or not lab_location.welcome_email_enabled or not lab_location.email_template:
+        return
+
+    # Fetch student email
+    student_email = get_student_email(l_number)
+    if not student_email:
+        logger.error(f"No email found for student with L number {l_number}")
+        return
+
+    # Construct the email
+    subject = lab_location.email_template.subject
+    body = lab_location.email_template.body
+
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = config['smtp']['SUPPORT_EMAIL']
+    msg['To'] = student_email
+
+    # Use msmtp to send the email
+    with open('/tmp/email.txt', 'w') as file:
+        file.write(msg.as_string())
+    
+    subprocess.run(["msmtp", "-a", config['smtp']['ACCOUNT'], student_email], input=msg.as_string(), text=True)
+
+def get_student_email(l_number):
+    """Retrieve the student's email address from the SSHFS file."""
+    sshfs = create_sshfs()
+    file_path = os.path.join(config['sshfs']['REMOTE_TSV_PATH'], 'zsrsinf_cit.txt')
+    try:
+        with sshfs.open(file_path, 'r') as file:
+            reader = csv.reader(file, delimiter='\t')
+            for row in reader:
+                if row[0].strip() == l_number:
+                    return row[5].strip()  # Assuming the email is in the 6th column
+    except Exception as e:
+        logger.error(f"Error reading SSHFS file: {e}")
+    return None

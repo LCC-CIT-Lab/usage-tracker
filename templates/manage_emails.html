@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <!-- Add this part to display flashed messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+        
+        <h2>Manage Welcome Email for {{ lab_location.location_name }}</h2>
+        <form action="{{ url_for('admin.manage_emails', lab_id=lab_id) }}" method="post">
+            {{ form.hidden_tag() }}
+            <div>
+                {{ form.subject.label }} {{ form.subject(size=32) }}
+                {% if form.subject.errors %}
+                    <div class="error">{{ form.subject.errors[0] }}</div>
+                {% endif %}
+            </div>
+            <div>
+                {{ form.body.label }}
+                {{ form.body(rows=4, cols=32) }}
+                {% if form.body.errors %}
+                    <div class="error">{{ form.body.errors[0] }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label for="enable_email">Enable Welcome Email:</label>
+                <input type="checkbox" name="enable_email" id="enable_email" {{ 'checked' if enable_email }}>
+            </div>
+            <div>
+                {{ form.submit() }}
+            </div>
+        </form>
+        <br><br><br>
+        <div class="button-container">
+            <!-- Back Button -->
+            <div>
+                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+            </div>
+            <!-- Logout Button -->
+            <div>
+                <form action="{{ url_for('auth.logout') }}" method="post">
+                    {{ logout_form.hidden_tag() }}
+                    <button type="submit" class="buttonsignout">Logout</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

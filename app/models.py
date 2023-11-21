@@ -33,7 +33,7 @@ class User(UserMixin, db.Model):
     hashed_password = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     can_set_message = db.Column(db.Boolean, default=False)
-    ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
+    can_manage_email = db.Column(db.Boolean, default=False)
     ip_locations = db.relationship('IPLocation', secondary=user_ip_mapping, lazy='subquery',
                                    backref=db.backref('mapped_users', lazy=True))
 
@@ -50,6 +50,9 @@ class IPLocation(db.Model):
     ip_address = db.Column(db.String(45))
     location_name = db.Column(db.String(100))
     sign_ins = db.relationship('SignInData', backref='ip_location', lazy='dynamic')
+    email_template = db.relationship('EmailTemplate', backref='ip_location', uselist=False, cascade='all, delete-orphan')
+    welcome_email_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    email_template = db.relationship('EmailTemplate', backref='ip_location', uselist=False, cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<IPLocation {self.ip_address} - {self.location_name}>'
@@ -101,4 +104,11 @@ class DatabaseLogHandler(logging.Handler):
         except Exception as e:
             # Log the error using a separate logger or print to stderr
             db.session.rollback()
+
+
+class EmailTemplate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    subject = db.Column(db.String(255), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    lab_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
 
