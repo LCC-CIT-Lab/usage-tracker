@@ -32,8 +32,6 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     hashed_password = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
-    can_set_message = db.Column(db.Boolean, default=False)
-    can_manage_email = db.Column(db.Boolean, default=False)
     ip_locations = db.relationship('IPLocation', secondary=user_ip_mapping, lazy='subquery',
                                    backref=db.backref('mapped_users', lazy=True))
 
@@ -112,3 +110,11 @@ class EmailTemplate(db.Model):
     body = db.Column(db.Text, nullable=False)
     lab_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
 
+
+class ManualSignInSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'), nullable=False)
+    manual_signin_enabled = db.Column(db.Boolean, default=False)
+    l_numbers_csv = db.Column(db.Text)  # Storing L-numbers as a CSV string
+    class_options = db.Column(db.Text)  # Storing class options as a comma-separated string
+    signout_comment_email = db.Column(db.String(120))

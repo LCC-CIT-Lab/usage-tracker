@@ -1,19 +1,24 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, session, send_file
-from flask_login import login_required, current_user
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, current_app, jsonify, session, send_file
+from flask_login import login_required, current_user, logout_user
 from app.utils import delete_old_logs, get_lab_info
-from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage, SignInData, EmailTemplate
-from app.forms import LoginForm, LogoutForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, UploadCSVForm, TermDatesForm, ManageEmailsForm
+from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage, SignInData, EmailTemplate, ManualSignInSettings
+from app.forms import LoginForm, LogoutForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, UploadCSVForm, TermDatesForm, ManageEmailsForm, ToggleManualSignInForm, QRCodeForm
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
-from io import StringIO
+from io import StringIO, BytesIO
 
 import logging
 import traceback
 import csv
 import os
+import io
+import qrcode
 import itertools
+import base64
+import shutil
+
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -29,6 +34,19 @@ def require_admin(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_admin:
             flash('Access denied: You do not have the necessary permissions.', 'error')
+            return redirect(url_for('auth.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def logout_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        logout_form = LogoutForm()
+        if logout_form.validate_on_submit():
+            logout_user()
+            session.clear()
+            flash('Logged out successfully.', 'success')
             return redirect(url_for('auth.login'))
         return f(*args, **kwargs)
     return decorated_function
@@ -93,20 +111,15 @@ def create_admin(app):
 # Function to sign in to the admin dashboard
 @admin_bp.route('/admin_dashboard', methods=['GET', 'POST'])
 @login_required
+@logout_required
 def admin_dashboard():
-    logout_form = LogoutForm()
-
     lab_info = get_lab_info(request.remote_addr)
     lab_location_name, lab_location_id = lab_info  # Unpack the tuple
 
-    # Fetch the default lab ID
-    default_lab = IPLocation.query.first()
-    default_lab_id = default_lab.id if default_lab else None
-
     if current_user.is_authenticated:
         # Pass the is_admin variable and the IPLocation instance to the template
-        return render_template('admin_dashboard.html', is_admin=current_user.is_admin, logout_form=logout_form,
-                               lab_location_id=lab_location_id, default_lab_id=default_lab_id)
+        return render_template('admin_dashboard.html', is_admin=current_user.is_admin,
+                               lab_location_id=lab_location_id)
     else:
         flash('Please log in with an admin account to access this page.', 'error')
         return redirect(url_for('auth.login'))
@@ -117,9 +130,9 @@ def admin_dashboard():
 
 @admin_bp.route('/query_selection', methods=['GET', 'POST'])
 @login_required
+@logout_required
 def query_selection():
     form = QuerySelectionForm()
-    logout_form = LogoutForm()
     term_dates = TermDates.query.all()
 
     # Populate term date range choices
@@ -175,9 +188,9 @@ def query_selection():
                 f.write(output.getvalue())
             session['csv_filename'] = csv_filename
 
-            return render_template('query_selection.html', form=form, term_dates=term_dates, logout_form=logout_form, csv_filename=csv_filename)
+            return render_template('query_selection.html', form=form, term_dates=term_dates, csv_filename=csv_filename)
 
-    return render_template('query_selection.html', form=form, term_dates=term_dates, logout_form=logout_form, csv_filename=None)
+    return render_template('query_selection.html', form=form, term_dates=term_dates, csv_filename=None)
 
 
 # ADMIN USER MANAGEMENT #
@@ -186,6 +199,7 @@ def query_selection():
 @admin_bp.route('/user_management', methods=['GET', 'POST'])
 @login_required
 @require_admin
+@logout_required
 def user_management():
     
     # Clear the session variable when the page loads
@@ -198,7 +212,6 @@ def user_management():
         selected_user_id = session.get('last_selected_user_id')
 
     form = LoginForm()
-    logout_form = LogoutForm()
     add_user_form = AddUserForm()
     users = User.query.all()
     current_app.logger.debug('Users List: %s', users)
@@ -206,7 +219,7 @@ def user_management():
     ip_locations = IPLocation.query.all()
 
 
-    return render_template('user_management.html', users=users, selected_user_id=selected_user_id, add_user_form=add_user_form, logout_form=logout_form, form=form,
+    return render_template('user_management.html', users=users, selected_user_id=selected_user_id, add_user_form=add_user_form, form=form,
                            ip_locations=ip_locations)
 
 
@@ -224,9 +237,6 @@ def add_user():
     email = request.form.get('email')
     password = request.form.get('password')
     is_admin = 'is_admin' in request.form
-    can_set_message = 'can_set_message' in request.form
-    can_manage_email = 'can_manage_email' in request.form
-
 
     if not (username and email and password):
         flash('Please enter all the required fields.', 'error')
@@ -242,8 +252,6 @@ def add_user():
         new_user.email = email
         new_user.password = new_user.set_password(password)
         new_user.is_admin = is_admin  # Set additional attributes
-        new_user.can_set_message = False  # Example
-        new_user.can_manage_email = can_manage_email
 
         try:
             # Add the new user to the session and commit
@@ -264,7 +272,7 @@ def add_user():
 @require_admin
 def remove_user(user_id, redirect_enabled=True):
     try:
-        user = User.query.get_or_404(user_id)
+        user = get_user_by_id(user_id)
         current_app.logger.info(f"Attempting to remove user with ID: {user_id}")
 
         LabMessage.query.filter_by(user_id=user.id).delete()
@@ -328,9 +336,9 @@ def delete_user(user):
 @admin_bp.route('/term_dates_management', methods=['GET', 'POST'])
 @login_required
 @require_admin
+@logout_required
 def term_dates_management():
     form = TermDatesForm()
-    logout_form = LogoutForm()
     upload_csv_form = UploadCSVForm()  # Instantiate the form for CSV upload
     term_dates = TermDates.query.all()
 
@@ -353,7 +361,7 @@ def term_dates_management():
             flash(f'An error occurred: {e}', 'error')
 
     term_dates = TermDates.query.all()
-    return render_template('term_dates_management.html', form=form, upload_csv_form=upload_csv_form, term_dates=term_dates, logout_form=logout_form)
+    return render_template('term_dates_management.html', form=form, upload_csv_form=upload_csv_form, term_dates=term_dates)
 
 
 def determine_term_name(start_date):
@@ -438,17 +446,21 @@ def upload_term_dates_csv():
 
 # SET MESSAGE MANAGEMENT #
 ##########################
-
-@admin_bp.route('/set_message/<int:lab_location_id>', methods=['GET', 'POST'])
+@admin_bp.route('/set_message', methods=['GET', 'POST'])
 @login_required
-def set_message(lab_location_id):
-    if not current_user.can_set_message:
+@logout_required
+def set_message():
+    if not current_user.ip_locations:
         flash('You do not have permission to set messages.', 'error')
         return redirect(url_for('admin.admin_dashboard'))
 
     form = MessageForm()
-    logout_form = LogoutForm()
-    form.lab_location_id.choices = [(loc.id, loc.location_name) for loc in current_user.ip_locations]
+
+    # Fetch locations based on user's permissions
+    if current_user.is_admin:
+        form.lab_location_id.choices = [(loc.id, loc.location_name) for loc in IPLocation.query.all()]
+    else:
+        form.lab_location_id.choices = [(loc.id, loc.location_name) for loc in current_user.ip_locations]
 
     if form.validate_on_submit():
         message = LabMessage(
@@ -459,12 +471,12 @@ def set_message(lab_location_id):
         db.session.add(message)
         db.session.commit()
         flash('Your message has been posted.', 'success')
-        # Redirect with the correct lab_location_id
-        return redirect(url_for('admin.set_message', lab_location_id=form.lab_location_id.data))
+        return redirect(url_for('admin.set_message'))
 
-    lab_locations = current_user.ip_locations
+    # Only show messages for the locations assigned to the user
+    lab_locations = current_user.ip_locations if not current_user.is_admin else IPLocation.query.all()
 
-    return render_template('set_message.html', form=form, logout_form=logout_form, lab_locations=lab_locations, lab_location_id=lab_location_id)
+    return render_template('set_message.html', form=form, lab_locations=lab_locations)
 
 
 @admin_bp.route('/delete_message/<int:message_id>', methods=['POST'])
@@ -482,90 +494,61 @@ def delete_message(message_id):
     return redirect(url_for('admin.set_message', lab_location_id=message.lab_location_id))
 
 
-@admin_bp.route('/toggle_message_permission/<int:user_id>', methods=['POST'])
-@login_required
-@require_admin
-def toggle_message_permission(user_id, redirect_enabled=True):
-    try:
-        current_app.logger.info(f"Attempting to toggle message permission for user ID: {user_id}")
-        user = User.query.get(user_id)
-        if user is None:
-            current_app.logger.warning(f"User ID {user_id} not found.")
-            flash('User not found.', 'error')
-            return redirect(url_for('admin.user_management'))
-
-        user.can_set_message = not user.can_set_message
-        db.session.commit()
-        current_app.logger.info(f"Message permission toggled for user ID: {user_id}.")
-        flash('Message permission toggled.', 'success')
-    except Exception as e:
-        current_app.logger.error(f"Error toggling message permission for user ID {user_id}: {e}", exc_info=True)
-        db.session.rollback()
-        flash(f'Error toggling message permission: {e}', 'error')
-
-    if redirect_enabled:
-        return redirect(url_for('admin.user_management'))
-    
-    return redirect(url_for('admin.user_management'))
-
-
 ## IP MAPPING MANAGEMENT ##
 ##########################
-@admin_bp.route('/ip-management', methods=['GET', 'POST'])
+@admin_bp.route('/ip_management', methods=['GET', 'POST'])
 @login_required
-@require_admin
+@logout_required
 def ip_management():
     add_ip_form = AddIPMappingForm()
     remove_ip_form = RemoveIPMappingForm()
-    logout_form = LogoutForm()
 
-    # Populate choices for remove_ip_form's remove_ip_id field
-    ip_locations = IPLocation.query.all()
-    remove_ip_form.remove_ip_id.choices = [(ip.id, f"{ip.ip_address} - {ip.location_name}") for ip in ip_locations]
+    # For admin users, show all IP mappings. For non-admin, show only their mappings.
+    if current_user.is_admin:
+        ip_locations = IPLocation.query.all()
+    else:
+        ip_locations = current_user.ip_locations
 
     if request.method == 'POST':
-        if add_ip_form.validate_on_submit():
-            # Logic to add an IP mapping
-            new_ip_location = IPLocation(
-                ip_address=add_ip_form.ip_address.data,
-                location_name=add_ip_form.location_name.data
-            )
-            db.session.add(new_ip_location)
-            try:
+        # Non-admin users can only add or remove their own mappings
+        if not current_user.is_admin:
+            if add_ip_form.validate_on_submit():
+                new_ip_location = IPLocation(ip_address=add_ip_form.ip_address.data, location_name=add_ip_form.location_name.data)
+                db.session.add(new_ip_location)
+                db.session.flush()  # This ensures the new object has an ID assigned
+                current_user.ip_locations.append(new_ip_location)
                 db.session.commit()
                 flash('IP mapping added successfully.', 'success')
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Error adding IP mapping: {e}', 'error')
-            # Redirect to refresh the form and choices
-            return redirect(url_for('admin.ip_management'))
+            elif remove_ip_form.validate_on_submit():
+                ip_id_to_remove = int(remove_ip_form.remove_ip_id.data)
+                ip_location_to_remove = IPLocation.query.get(ip_id_to_remove)
+                if ip_location_to_remove in current_user.ip_locations:
+                    db.session.delete(ip_location_to_remove)
+                    db.session.commit()
+                    flash('IP mapping removed successfully.', 'success')
 
-        elif remove_ip_form.validate_on_submit():
-            # Logic to remove an IP mapping
-            selected_ip_id = remove_ip_form.remove_ip_id.data
-            ip_location = IPLocation.query.get(selected_ip_id)
-            if ip_location:
-                db.session.delete(ip_location)
+        # Admin users can add or remove any mappings
+        elif current_user.is_admin:
+            if add_ip_form.validate_on_submit():
+                new_ip_location = IPLocation(ip_address=add_ip_form.ip_address.data, location_name=add_ip_form.location_name.data)
+                db.session.add(new_ip_location)
+                db.session.commit()
+                flash('IP mapping added successfully.', 'success')
+            elif remove_ip_form.validate_on_submit():
+                ip_location_to_remove = IPLocation.query.get(remove_ip_form.remove_ip_id.data)
+                db.session.delete(ip_location_to_remove)
                 db.session.commit()
                 flash('IP mapping removed successfully.', 'success')
-            else:
-                flash('Selected IP mapping not found.', 'error')
-            # Redirect to refresh the form and choices
-            return redirect(url_for('admin.ip_management'))
-        else:
-            # Handle form validation errors for both forms
-            flash('Form validation error.', 'error')
 
-    # Render the template with the forms
-    return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form, logout_form=logout_form, ip_mappings=ip_locations)
+    return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form, ip_mappings=ip_locations)
 
 
-@admin_bp.route('/admin/assign_ip_mappings', methods=['POST'])
+@admin_bp.route('/admin/update_user_mappings', methods=['POST'])
 @login_required
 @require_admin
-def assign_ip_mappings():
+def update_user_mappings():
     selected_user_id = request.form.get('selected_user_id')
-    user = User.query.get_or_404(selected_user_id)
+    user = get_user_by_id(selected_user_id)
 
     # Update user's IP mappings
     selected_ip_mappings_ids = request.form.getlist('selected_ip_mappings')
@@ -574,10 +557,6 @@ def assign_ip_mappings():
         ip_location = IPLocation.query.get(ip_id)
         if ip_location:
             user.ip_locations.append(ip_location)
-
-    # Toggle permissions
-    user.can_set_message = 'can_set_message' in request.form
-    user.can_manage_email = 'can_manage_email' in request.form
 
     db.session.commit()
     flash('User settings updated successfully.', 'success')
@@ -637,14 +616,12 @@ def remove_ip_mapping():
 @login_required
 @require_admin
 def get_user_ip_mappings(user_id):
-    user = User.query.get_or_404(user_id)
+    user = get_user_by_id(user_id)
     assigned_ips = [ip_location.id for ip_location in user.ip_locations]
 
     # Add the user's message and email permission states to the response
     user_details = {
         'assignedIps': assigned_ips,
-        'canSetMessage': user.can_set_message,
-        'canManageEmail': user.can_manage_email
     }
     return jsonify(user_details)
 
@@ -656,8 +633,8 @@ def get_user_ip_mappings(user_id):
 @admin_bp.route('/logs')
 @login_required
 @require_admin
+@logout_required
 def view_logs():
-    logout_form = LogoutForm()
 
     page = request.args.get('page', 1, type=int)  # Get the current page number
     per_page = 10  # Set the number of logs per page
@@ -666,7 +643,7 @@ def view_logs():
     logs_pagination = LogEntry.query.order_by(LogEntry.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
     # Pass logs_pagination to the template
-    return render_template('view_logs.html', logs_pagination=logs_pagination, logout_form=logout_form)
+    return render_template('view_logs.html', logs_pagination=logs_pagination)
 
 
 # Function to start the logging 
@@ -738,80 +715,210 @@ def download_logs():
     
 # Welcome Email Management #
 ############################
-
-@admin_bp.route('/manage_emails/<int:lab_id>', methods=['GET', 'POST'])
+@admin_bp.route('/manage_emails', methods=['GET', 'POST'])
 @login_required
-@require_admin
-def manage_emails(lab_id):
+@logout_required
+def manage_emails():
+    lab_id = request.args.get('lab_id', type=int)
     form = ManageEmailsForm()
-    logout_form = LogoutForm()
+
+    # Fetch only lab locations assigned to the user
+    user_lab_locations = current_user.ip_locations if not current_user.is_admin else IPLocation.query.all()
+
+    if not lab_id and user_lab_locations:
+        lab_id = user_lab_locations[0].id  # Default to the first location
+
     lab_location = IPLocation.query.get_or_404(lab_id)
     email_template = lab_location.email_template
 
-    if request.method == 'POST' and form.validate_on_submit():
-        if email_template:
-            email_template.subject = form.subject.data
-            email_template.body = form.body.data
-        else:
-            email_template = EmailTemplate(subject=form.subject.data, body=form.body.data, lab_location_id=lab_id)
-            db.session.add(email_template)
+    # Existing POST request handling remains the same
 
-        # Update the welcome_email_enabled status
-        lab_location.welcome_email_enabled = 'enable_email' in request.form
-        db.session.commit()
-        flash('Email settings updated successfully', 'success')
-        return redirect(url_for('admin.manage_emails', lab_id=lab_id))
-
-    if email_template:
-        form.subject.data = email_template.subject
-        form.body.data = email_template.body
-
-    enable_email = lab_location.welcome_email_enabled if lab_location else False
-    return render_template('manage_emails.html', form=form, logout_form=logout_form, lab_location=lab_location, lab_id=lab_id, enable_email=lab_location.welcome_email_enabled)
+    return render_template('manage_emails.html', form=form,
+                           lab_location=lab_location, lab_id=lab_id, 
+                           enable_email=lab_location.welcome_email_enabled,
+                           user_lab_locations=user_lab_locations)
 
 
-@admin_bp.route('/get_user_details/<int:user_id>')
+@admin_bp.route('/admin/generate_qr_code', methods=['GET', 'POST'])
 @login_required
 @require_admin
-def get_user_details(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
+@logout_required
+def generate_qr_code():
+    form = QRCodeForm()  # Assuming you have a form for location selection
 
-    assigned_ips = [ip_location.id for ip_location in user.ip_locations]
-    return jsonify({
-        'assignedIps': assigned_ips, 
-        'enableWelcomeEmail': user.can_send_welcome_email
-    })
+    # Fetch only lab locations assigned to the user
+    form.location_id.choices = [(loc.id, loc.location_name) for loc in current_user.ip_locations]
 
+    qr_image_base64 = None
 
-@admin_bp.route('/toggle_email_permission/<int:user_id>', methods=['POST'])
+    if form.validate_on_submit():
+        # Generate QR Code based on the selected location
+        selected_location_id = form.location_id.data
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(url_for('main.landing', lab_id=selected_location_id, _external=True))
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffered = BytesIO()
+        img.save(buffered)
+        qr_image_base64 = base64.b64encode(buffered.getvalue()).decode()
+
+    return render_template('generate_qr_code.html', form=form, qr_image_base64=qr_image_base64)
+
+@admin_bp.route('/toggle_manual_signin', methods=['GET', 'POST'])
 @login_required
 @require_admin
-def toggle_email_permission(user_id):
-    user = User.query.get(user_id)
+@logout_required
+def toggle_manual_signin():
+    form = ToggleManualSignInForm()
 
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
+    # Populate location choices for current user
+    user_ip_locations = current_user.ip_locations if not current_user.is_admin else IPLocation.query.all()
+    form.location_id.choices = [(loc.id, loc.location_name) for loc in user_ip_locations]
 
-    user.can_manage_email = not user.can_manage_email
-    db.session.commit()
-    flash(f'Email management permission for {user.username} toggled.', 'success')
-    return redirect(url_for('admin.user_management'))
+    if form.validate_on_submit():
+        manual_signin_enabled = form.manual_signin_enabled.data
+        selected_location_id = form.location_id.data
+
+        # CSV file processing
+        csv_file = request.files.get('csv_file')
+        l_numbers = parse_csv_to_list(csv_file.read().decode('utf-8')) if csv_file and allowed_file(csv_file.filename) else []
+
+        # Class options and sign-out comment email
+        class_options = form.manual_class_options.data.split(',') if form.manual_class_options.data else []
+        signout_comment_email = form.signout_comment_email.data or current_app.config['smtp']['SUPPORT_EMAIL']
+
+        # Store settings in database or session
+        store_manual_signin_settings(selected_location_id, manual_signin_enabled, l_numbers, class_options, signout_comment_email)
+
+        flash('Manual sign-in settings updated.', 'success')
+        return redirect(url_for('admin.toggle_manual_signin'))
+
+    # GET request handling
+    # Load existing settings if any
+    load_existing_settings(form)
+
+    return render_template('toggle_manual_signin.html', form=form)
 
 
-@admin_bp.route('/update_user_settings/<int:user_id>', methods=['POST'])
-@login_required
-@require_admin
-def update_user_settings(user_id):
-    user = User.query.get_or_404(user_id)
-    data = request.json
+def store_manual_signin_settings(location_id, enabled, l_numbers, class_options, email):
+    # Convert L-numbers list to CSV string
+    l_numbers_csv = ','.join(l_numbers)
 
-    user.can_set_message = data['canSetMessage']
-    user.can_manage_email = data['canManageEmail']
+    # Fetch existing settings for the location or create a new one
+    settings = ManualSignInSettings.query.filter_by(location_id=location_id).first()
+    if settings:
+        # Update existing settings
+        settings.manual_signin_enabled = enabled
+        settings.l_numbers_csv = l_numbers_csv
+        settings.class_options = ','.join(class_options)
+        settings.signout_comment_email = email
+        current_app.logger.info('Updated manual sign-in settings for location {}'.format(location_id))
+    else:
+        # Create new settings
+        settings = ManualSignInSettings(
+            location_id=location_id,
+            manual_signin_enabled=enabled,
+            l_numbers_csv=l_numbers_csv,
+            class_options=','.join(class_options),
+            signout_comment_email=email
+        )
+        db.session.add(settings)
+        current_app.logger.info('Created new manual sign-in settings for location {}'.format(location_id))
 
     try:
         db.session.commit()
-        return jsonify({'message': 'User settings updated successfully'}), 200
+        current_app.logger.info('Manual sign-in settings stored successfully.')
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error('Error storing manual sign-in settings: {}'.format(e))
+        db.session.rollback()
+
+
+def load_existing_settings(form):
+    # Assuming the user can only edit settings for their locations
+    user_locations = [loc.id for loc in current_user.ip_locations]
+    settings = ManualSignInSettings.query.filter(ManualSignInSettings.location_id.in_(user_locations)).first()
+
+    if settings:
+        form.manual_signin_enabled.data = settings.manual_signin_enabled
+        form.location_id.data = settings.location_id
+        form.manual_class_options.data = settings.class_options
+        form.signout_comment_email.data = settings.signout_comment_email
+    else:
+        # Default values if no settings are found
+        form.manual_signin_enabled.data = False
+        form.location_id.data = user_locations[0] if user_locations else None
+        form.manual_class_options.data = ''
+        form.signout_comment_email.data = current_app.config['smtp']['SUPPORT_EMAIL']
+
+
+def parse_csv_to_list(csv_content):
+    reader = csv.reader(StringIO(csv_content))
+    return [row[0] for row in reader if row]  # Extract the first column
+
+
+@admin_bp.route('/export_db')
+@login_required
+@require_admin
+def export_db():
+    db_path = os.path.join(current_app.root_path, 'attendance.db')  # Adjust the path
+    temp_backup_path = os.path.join(current_app.root_path, 'temp', 'temp_db_backup.sqlite')
+
+    if not os.path.exists(os.path.join(current_app.root_path, 'temp')):
+        os.makedirs(os.path.join(current_app.root_path, 'temp'))
+
+    try:
+        shutil.copy(db_path, temp_backup_path)
+        return send_file(temp_backup_path, as_attachment=True, attachment_filename='attendance_backup.sqlite')
+    except Exception as e:
+        current_app.logger.error(f"Error during database export: {e}")
+        flash("Failed to export the database.", "error")
+        return redirect(url_for('admin.admin_dashboard'))  # Replace with your actual dashboard route
+    finally:
+        if os.path.exists(temp_backup_path):
+            os.remove(temp_backup_path)
+
+
+@admin_bp.route('/import_db', methods=['GET', 'POST'])
+@login_required
+@require_admin
+@logout_required
+def import_db():
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if file and allowed_file(file.filename):  # Implement allowed_file check for security
+            filename = secure_filename(file.filename)
+            config = current_app.config
+            db_path = config['flask']['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
+            backup_path = os.path.join('temp', 'backup_db.sqlite')  # Backup the current database
+            new_db_path = os.path.join('temp', filename)  # Path to store the new database
+
+            if not os.path.exists('temp'):
+                os.makedirs('temp')
+
+            try:
+                # Backup the current database
+                shutil.copy(db_path, backup_path)
+                # Save the new database file
+                file.save(new_db_path)
+
+                # Replace the current database with the new one
+                shutil.copy(new_db_path, db_path)
+
+                flash('Database imported successfully.', 'success')
+                return redirect(url_for('admin.some_admin_route'))
+            except Exception as e:
+                current_app.logger.error(f"Error during database import: {e}")
+                flash("Failed to import the database.", "error")
+        else:
+            flash("Invalid file format.", "error")
+
+    return render_template('import_db.html')
+
+
+def get_user_by_id(user_id):
+    return User.query.get_or_404(user_id)

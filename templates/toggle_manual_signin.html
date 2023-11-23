@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Toggle Manual Sign-in</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+        
+        <div class="dashboard-header">
+            <h2>Toggle Manual Sign-in</h2>
+            <form method="post" action="{{ url_for('admin.toggle_manual_signin') }}" enctype="multipart/form-data">
+                {{ form.hidden_tag() }}
+                
+                <!-- Location Dropdown -->
+                <div class="form-group">
+                    {{ form.location_id.label }}
+                    {{ form.location_id(class='form-control') }}
+                    {% if form.location_id.errors %}
+                        <span class="error">{{ form.location_id.errors[0] }}</span>
+                    {% endif %}
+                </div>
+
+                <!-- File Upload for L-Numbers -->
+                <div class="form-group">
+                    {{ form.csv_file.label }}
+                    {{ form.csv_file(class='form-control') }}
+                    {% if form.csv_file.errors %}
+                        <span class="error">{{ form.csv_file.errors[0] }}</span>
+                    {% endif %}
+                </div>
+    
+                <!-- Manual Class Options Input -->
+                <div class="form-group">
+                    {{ form.manual_class_options.label }}
+                    {{ form.manual_class_options(class='form-control') }}
+                    {% if form.manual_class_options.errors %}
+                        <span class="error">{{ form.manual_class_options.errors[0] }}</span>
+                    {% endif %}
+                </div>
+    
+                <!-- Sign-out Comment Email Input -->
+                <div class="form-group">
+                    {{ form.signout_comment_email.label }}
+                    {{ form.signout_comment_email(class='form-control') }}
+                    {% if form.signout_comment_email.errors %}
+                        <span class="error">{{ form.signout_comment_email.errors[0] }}</span>
+                    {% endif %}
+                </div>
+    
+                <!-- Enable Manual Sign-in Checkbox -->
+                <div class="form-group">
+                    {{ form.manual_signin_enabled.label }}
+                    {{ form.manual_signin_enabled(class='form-check-input') }}
+                </div>
+    
+                <!-- Submit Button -->
+                <div>
+                    {{ form.submit(class='btn btn-primary') }}
+                </div>
+            </form>
+            <br><br><br>
+            <div class="button-container">
+                <!-- Back Button -->
+                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                
+                <!-- Logout Button -->
+                <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

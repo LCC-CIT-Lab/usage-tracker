@@ -73,10 +73,7 @@
                 </div>
                     <!-- Logout Button -->
                 <div>
-                    <form action="{{ url_for('auth.logout') }}" method="post">
-                        {{ logout_form.hidden_tag() }}
-                        <button type="submit" class="buttonsignout">Logout</button>
-                    </form>
+                    <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
                 </div>
             </div>
         </div>

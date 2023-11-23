@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Import Export Database</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <h2>Import Database</h2>
+            <form method="post" action="{{ url_for('admin.import_db') }}" enctype="multipart/form-data">
+                <!-- File input for database file -->
+                <input type="file" name="db_file">
+                <!-- Submit button -->
+                <button type="submit">Import Database</button>
+            </form>
+            <br>
+            <!-- Export Database Section -->
+            <a href="{{ url_for('admin.export_db') }}" class="button">Export Database</a>
+            
+            <br><br><br>
+            <div class="button-container">
+                <div>
+                <!-- Back Button -->
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                </div>
+                <!-- Logout Button -->
+                <div>
+                    <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

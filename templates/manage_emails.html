@@ -18,7 +18,18 @@
         {% endwith %}
         
         <h2>Manage Welcome Email for {{ lab_location.location_name }}</h2>
-        <form action="{{ url_for('admin.manage_emails', lab_id=lab_id) }}" method="post">
+        <div class="select-lab-location">
+            <h3>Select Location</h3>
+            <form method="get" action="{{ url_for('admin.manage_emails') }}">
+                <select name="lab_id">
+                    {% for loc in user_lab_locations %}
+                        <option value="{{ loc.id }}" {{ 'selected' if loc.id == lab_id }}>{{ loc.location_name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="submit" value="Select">
+            </form>
+        </div>
+        <form action="{{ url_for('admin.manage_emails') }}" method="post">
             {{ form.hidden_tag() }}
             <div>
                 {{ form.subject.label }} {{ form.subject(size=32) }}
@@ -49,10 +60,7 @@
             </div>
             <!-- Logout Button -->
             <div>
-                <form action="{{ url_for('auth.logout') }}" method="post">
-                    {{ logout_form.hidden_tag() }}
-                    <button type="submit" class="buttonsignout">Logout</button>
-                </form>
+                <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
             </div>
         </div>
     </div>

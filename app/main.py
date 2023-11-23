@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, render_template, request, redirect, url_fo
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 from datetime import datetime, time
 from email.mime.text import MIMEText
-from app.models import db, SignInData, IPLocation, TermDates, LabMessage, User
+from app.models import db, SignInData, IPLocation, TermDates, LabMessage, User, ManualSignInSettings
 from app.forms import LandingForm, SignInForm, SignOutForm
 from app.utils import get_lab_info, delete_old_logs
 from paramiko import util
@@ -53,58 +53,69 @@ def landing():
     lab_location_name = get_lab_name(request.remote_addr)
     lab_info = get_lab_info(request.remote_addr) if not lab_id else (lab_location_name, lab_id)
     lab_id = lab_info[1] if lab_info else None
+    lab_location = None  # Initialize lab_location
 
     if lab_id and is_valid_lab_id(lab_id):
         lab_location = IPLocation.query.get(lab_id)
         messages = lab_location.lab_messages if lab_location else None
     else:
-        lab_location = None
         messages = None
 
     if form.validate_on_submit():
-        # Obtain l_number directly from the form data
         l_number = form.l_number.data
 
-        # Normalize l_number
-        l_number = normalize_l_number(l_number)
+        # Load manual sign-in settings from database
+        settings = ManualSignInSettings.query.first()
 
-        # Check if it's a valid student L number
-        if not student_exists(l_number):
-            flash('Invalid L number, please sign-in again.')
-            return redirect(url_for('main.landing', lab_id=lab_id))
-
-        # Proceed if valid student L number
-        session['l_number'] = l_number
+        if settings and settings.manual_signin_enabled:
+            l_numbers_list = parse_csv_to_list(settings.l_numbers_csv)
+            if not l_numbers_list or l_number in l_numbers_list:
+                session['l_number'] = l_number
+                action = choosesignout(l_number)
+            else:
+                flash('Invalid L number, please sign-in again.')
+                return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages)
+        else:
+            l_number = normalize_l_number(l_number)
+            if student_exists(l_number):
+                session['l_number'] = l_number
+                action = choosesignout(l_number)
+            else:
+                flash('Invalid L number, please sign-in again.')
+                return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages)
 
         # Check if it's the first visit
         first_visit = SignInData.query.filter_by(l_number=l_number).count() == 0
-        if first_visit:
-            if lab_location and lab_location.welcome_email_enabled:
-                send_welcome_email(l_number, lab_id)
-                current_app.logger.info("Sending welcome email.")
-            else:
-                current_app.logger.info("Welcome email disabled for this location.")
+        if first_visit and lab_location and lab_location.welcome_email_enabled:
+            send_welcome_email(l_number, lab_id)
+            current_app.logger.info(f"Sending welcome email to {l_number}.")
 
-        action = choosesignout(l_number)
         if action == 'sign_out':
             return redirect(url_for('main.sign_out', l_number=l_number))
         else:
             return redirect(url_for('main.sign_in', l_number=l_number))
-        
+
     return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages)
 
 
+def parse_csv_to_list(csv_string):
+    """
+    Parses a CSV string into a list.
+    """
+    if not csv_string:
+        return []
+    return [item.strip() for item in csv_string.split(',')]
+
+
 def choosesignout(l_number):
-    # Check if student is already signed in today
     today = datetime.now().date()
-    student_entries_today = SignInData.query.filter_by(l_number=l_number).all()
+    student_today = SignInData.query.filter(
+        SignInData.l_number == l_number,
+        db.func.date(SignInData.sign_in_timestamp) == today,
+        SignInData.sign_out_timestamp.is_(None)
+    ).first()
 
-    student_today = None
-    for entry in student_entries_today:
-        if entry.sign_in_timestamp.date() == today and not entry.sign_out_timestamp:
-            student_today = entry
-
-    if student_today and not student_today.sign_out_timestamp:
+    if student_today:
         return 'sign_out'
     else:
         return 'sign_in'
@@ -152,72 +163,47 @@ def create_sshfs():
 @main_bp.route('/sign-in', methods=['GET', 'POST'])
 def sign_in():
     form = SignInForm()
-    lab_location_name = 'Unknown Location'  # Initialize lab_location_name
+    lab_location_name = 'Unknown Location'
 
-    try:
+    # Extract lab information
+    lab_info = get_lab_info(request.remote_addr)
+    lab_location_name = lab_info[0] if lab_info else 'Unknown Location'
+    lab_id = lab_info[1] if lab_info else None
 
-        current_app.logger.debug("sign_in function called")
+    # Fetch manual sign-in settings from database
+    settings = ManualSignInSettings.query.filter_by(location_id=lab_id).first()
 
-        # Extract lab information
-        lab_info = get_lab_info(request.remote_addr)
-        lab_location_name = lab_info[0] if lab_info else 'Unknown Location'
-        lab_id = lab_info[1] if lab_info else None
+    # Determine classes to display based on settings
+    if settings and settings.manual_signin_enabled:
+        manual_class_options = settings.class_options.split(',')
+        classes = manual_class_options
+    else:
+        classes = get_student_classes(session.get('l_number', ''))
 
-        # Fetch classes and set choices for class_selected
-        classes_param = request.args.get('classes', '')
-        classes = classes_param.split(',') if classes_param else get_student_classes(session.get('l_number', ''))
-        classes.append('Other')
-        form.class_selected.choices = [(cls, cls) for cls in classes]
+    # Ensure "Other" is always included in the class list
+    classes.append('Other')
+    form.class_selected.choices = [(cls, cls) for cls in classes]
 
-        # Pre-select the first class if it exists
-        if request.method == 'GET':
-            if classes:
-                form.class_selected.data = classes[0]
+    l_number = request.args.get('l_number') or session.get('l_number')
+    if l_number:
+        form.l_number.data = l_number
+        form.l_number.render_kw = {'readonly': True}
 
-        # Prepopulate l_number from query string or session
-        l_number = request.args.get('l_number') or session.get('l_number')
-        if l_number:
-            form.l_number.data = l_number
-            form.l_number.render_kw = {'readonly': True}
-        else:
-            # Handle the case where l_number is not found
-            flash('L number is missing. Please try again.', 'error')
-            return redirect(url_for('main.landing'))
+    if form.validate_on_submit():
+        class_selected = form.class_selected.data
 
-        if form.validate_on_submit():
-            current_app.logger.debug("Form is valid, processing sign-in")
-            class_selected = form.class_selected.data
+        # Handle sign-in logic
+        process_sign_in(l_number, lab_location_name, class_selected, lab_id)
+        flash('Signed in successfully')
+        return redirect(url_for('main.landing'))
 
-            sign_in_data = SignInData(
-                l_number=l_number,
-                lab_location=lab_location_name,
-                class_selected=class_selected,
-                sign_in_timestamp=datetime.now(),
-            )
-
-            db.session.add(sign_in_data)
-            db.session.commit()
-
-            flash('Signed in successfully')
-            current_app.logger.debug("Sign in processed successfully, redirecting...")
-            return redirect(url_for('main.landing'))
-
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Error processing sign in: {e}")
-        flash('An error occurred while signing in.', 'error')
-
-    finally:
-        # Moved the redirection into the exception handling to ensure it's always executed
-        current_app.logger.debug("Rendering sign-in page or redirecting (finally block)")
-        return render_template('sign_in.html', form=form, lab_location_name=lab_location_name) if not form.validate_on_submit() else redirect(url_for('main.landing'))
+    return render_template('sign_in.html', form=form, lab_location_name=lab_location_name)
 
 
 @main_bp.route('/sign-out', methods=['GET', 'POST'])
 def sign_out():
     form = SignOutForm()
     l_number = request.args.get('l_number') or session.get('l_number')
-    comment = form.comment.data
     continue_without_comment = request.args.get('continue')  # Check if continue was clicked
 
     # Delete old logs after successful admin login
@@ -227,37 +213,41 @@ def sign_out():
     if not l_number:
         flash('Error: L number missing.')
         return redirect(url_for('main.landing'))
-    
-    # Calculate daily time in lab
-    daily_time = calculate_daily_time_in_lab(l_number)
 
-    # Calculate total time in current term
+    # Calculate daily time in lab and total term time
+    daily_time = calculate_daily_time_in_lab(l_number)
     total_term_time = calculate_total_term_time(l_number)
 
-    if continue_without_comment or form.validate_on_submit():
-        # This will handle both clicking continue and submitting the form
-        process_sign_out(l_number, form.comment.data if form.validate_on_submit() else "")
+    if form.validate_on_submit():
+        # Handle form submission with a comment
+        process_sign_out(l_number, form.comment.data)
         flash('Signed out successfully.')
-        session.pop('l_number', None)
-        return redirect(url_for('main.landing'))
-    
-    return render_template('sign_out.html', form=form, l_number=l_number, daily_time=daily_time, total_term_time=total_term_time)
+    elif continue_without_comment:
+        # Handle clicking continue without a comment
+        process_sign_out(l_number, None)
+        flash('Signed out successfully.')
+    else:
+        # If neither form submission nor continue button click
+        return render_template('sign_out.html', form=form, l_number=l_number, daily_time=daily_time, total_term_time=total_term_time)
+
+    session.pop('l_number', None)
+    return redirect(url_for('main.landing'))
 
 
 def process_sign_out(l_number, comment):
     sign_in_record = SignInData.query.filter_by(l_number=l_number, sign_out_timestamp=None).order_by(SignInData.sign_in_timestamp.desc()).first()
-    try:
-        send_comment_to_support(l_number, comment)
-    except Exception as e:
-        current_app.logger.error('Problem with sending comment to support')
 
     if sign_in_record:
         current_app.logger.info(f"{l_number} sign-out")
         sign_in_record.sign_out_timestamp = datetime.now()
-        sign_in_record.comments = comment
+        sign_in_record.comments = comment if comment else ""
+        if comment:  # Send email only if comment is provided
+            try:
+                send_comment_to_support(l_number, comment)
+            except Exception as e:
+                current_app.logger.error('Problem with sending comment to support')
         try:
             db.session.commit()
-            session.pop('l_number', None)
             current_app.logger.info('User signed out successfully')
             return True
         except Exception as e:
@@ -359,21 +349,22 @@ def student_signed_in_today(l_number):
 
 
 def process_sign_in(l_number, lab_location_name, class_selected, lab_id):
-    """Process the student's sign-in."""
     sign_in_data = SignInData(
         l_number=l_number,
         lab_location=lab_location_name,
         class_selected=class_selected,
         sign_in_timestamp=datetime.now(),
     )
-
-    # Retrieve the user's IP locations
-    user = User.query.filter_by(l_number=l_number).first()
-    if user:
-        sign_in_data.ip_locations = user.ip_locations
-
     db.session.add(sign_in_data)
-    db.session.commit()
+    try:
+        db.session.commit()
+        flash('Signed in successfully')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error processing sign in for L number {l_number}: {e}')
+        flash('An error occurred during sign in.', 'error')
+
+    return redirect(url_for('main.landing'))
 
 
 def handle_existing_sign_in(l_number):
@@ -492,7 +483,9 @@ def send_comment_to_support(l_number, comment):
         msg = MIMEText(body)
         msg['Subject'] = subject
         msg['From'] = config['smtp']['SUPPORT_EMAIL']
-        msg['To'] = email
+        # Use a dynamic email recipient
+        signout_comment_email = session.get('signout_comment_email', config['smtp']['SUPPORT_EMAIL'])
+        msg['To'] = signout_comment_email
 
         # Write the email to a file
         with open(email_file_path, 'w') as file:
@@ -588,9 +581,15 @@ def statistics():
     lab_location_name = get_lab_name(request.remote_addr)
 
     if lab_id and is_valid_lab_id(lab_id):
-        # Enhanced statistics gathering logic here
-        stats = enhanced_student_stats(lab_id)  # This is a new function to be implemented
-        return render_template('statistics.html', stats=stats, lab_id=lab_id, lab_location_name=lab_location_name)  # Pass 'stats' and 'lab_id' to the template
+        try:
+            stats = enhanced_student_stats(lab_id)
+            if not stats:
+                raise ValueError("Stats data is empty or not properly set")
+            return render_template('statistics.html', stats=stats, lab_id=lab_id, lab_location_name=lab_location_name)
+        except Exception as e:
+            current_app.logger.error(f"Error generating stats: {e}")
+            flash('Error generating statistics', 'error')
+            return redirect(url_for('main.landing'))
     else:
         flash('Invalid lab ID', 'error')
         return redirect(url_for('main.landing'))
@@ -599,6 +598,7 @@ def statistics():
 def enhanced_student_stats(lab_id):
     # Ensure lab_id is valid
     if not lab_id:
+        current_app.logger.debug("Invalid lab_id provided.")
         return None
 
     # Define the current term
@@ -607,10 +607,25 @@ def enhanced_student_stats(lab_id):
         TermDates.end_date >= datetime.now().date()
     ).first()
     if not current_term:
+        current_app.logger.debug("No current term found.")
+        flash('Please create a current term to access statistics.')
         return None
 
     # Initialize stats dictionary
-    stats = {}
+    stats = {
+        "total_hours": 0,
+        "average_session_duration": 0,
+        "std_deviation": 0,
+        "variance": 0,
+        "median": 0,
+        "peak_hour": None,
+        "busiest_day": None,
+        "new_students": 0,
+        "returning_students": 0,
+        "most_popular_class": None,
+        "hourly_attendance": [],
+        "daily_attendance": []
+    }
 
     # Basic stats
     sign_ins = SignInData.query.filter(
@@ -618,105 +633,87 @@ def enhanced_student_stats(lab_id):
         SignInData.ip_location_id == lab_id
     ).all()
 
-    total_hours = sum(
-        ((sign_out.sign_out_timestamp or datetime.now()) - sign_out.sign_in_timestamp).total_seconds() / 3600
-        for sign_out in sign_ins
-    )
-
-    # Add total hours to stats
-    stats["total_hours"] = round(total_hours, 2)
-
-    # Calculate average session duration
     if sign_ins:
-        average_session_duration = total_hours / len(sign_ins) if sign_ins else 0
-    else:
-        average_session_duration = 0
+        total_hours = sum(
+            ((sign_out.sign_out_timestamp or datetime.now()) - sign_out.sign_in_timestamp).total_seconds() / 3600
+            for sign_out in sign_ins
+        )
+        stats["total_hours"] = round(total_hours, 2)
+        stats["average_session_duration"] = round(total_hours / len(sign_ins), 2) if len(sign_ins) > 0 else 0
 
-    stats["average_session_duration"] = round(average_session_duration, 2)
+        # Advanced statistics calculations
+        session_durations = [
+            ((sign_out.sign_out_timestamp or datetime.now()) - sign_out.sign_in_timestamp).total_seconds() / 3600
+            for sign_out in sign_ins
+        ]
+        stats["std_deviation"] = round(np.std(session_durations), 2)
+        stats["variance"] = round(np.var(session_durations), 2)
+        stats["median"] = round(np.median(session_durations), 2)
 
-    # Peak hours
-    hours = db.session.query(
-        extract('hour', SignInData.sign_in_timestamp).label('hour'),
-        func.count(SignInData.id)
-    ).group_by('hour').order_by(func.count(SignInData.id).desc()).first()
-    peak_hour = hours.hour if hours else None
+        # Peak hour calculation
+        peak_hour_query = db.session.query(
+            extract('hour', SignInData.sign_in_timestamp).label('hour'),
+            func.count(SignInData.id)
+        ).filter(
+            SignInData.sign_in_timestamp.between(current_term.start_date, current_term.end_date),
+            SignInData.ip_location_id == lab_id
+        ).group_by('hour').order_by(func.count(SignInData.id).desc()).first()
 
-    # Day of week analysis with day names
-    day_of_week_counts = db.session.query(
-        extract('dow', SignInData.sign_in_timestamp).label('dow'),
-        func.count(SignInData.id)
-    ).group_by('dow').all()
+        stats["peak_hour"] = peak_hour_query.hour if peak_hour_query else None
 
-    if day_of_week_counts:
-        busiest_day_number = max(day_of_week_counts, key=lambda x: x[1])[0]
-        busiest_day = calendar.day_name[busiest_day_number - 1]  # Convert to weekday name
-    else:
-        busiest_day = None
+        # Busiest day calculation
+        busiest_day_query = db.session.query(
+            extract('dow', SignInData.sign_in_timestamp).label('dow'),
+            func.count(SignInData.id)
+        ).filter(
+            SignInData.sign_in_timestamp.between(current_term.start_date, current_term.end_date),
+            SignInData.ip_location_id == lab_id
+        ).group_by('dow').order_by(func.count(SignInData.id).desc()).first()
 
-    # New vs Returning students
-    student_visits = db.session.query(
-        SignInData.l_number,
-        func.count(SignInData.id)
-    ).group_by(SignInData.l_number).all()
+        stats["busiest_day"] = calendar.day_name[busiest_day_query.dow - 1] if busiest_day_query else None
 
-    new_students = len([visit for visit in student_visits if visit[1] == 1])
-    returning_students = len(student_visits) - new_students
+        # New vs Returning students calculation
+        student_visits = db.session.query(
+            SignInData.l_number,
+            func.count(SignInData.id)
+        ).filter(
+            SignInData.sign_in_timestamp.between(current_term.start_date, current_term.end_date),
+            SignInData.ip_location_id == lab_id
+        ).group_by(SignInData.l_number).all()
 
-    # Class Popularity
-    class_popularity = db.session.query(
-        SignInData.class_selected,
-        func.count(SignInData.id)
-    ).group_by(SignInData.class_selected).all()
+        new_students = len([visit for visit in student_visits if visit[1] == 1])
+        returning_students = len(student_visits) - new_students
 
-    most_popular_class = max(class_popularity, key=lambda x: x[1])[0] if class_popularity else None
+        stats["new_students"] = new_students
+        stats["returning_students"] = returning_students
 
-    # Additional calculations
-    session_durations = [
-        ((sign_out.sign_out_timestamp or datetime.now()) - sign_out.sign_in_timestamp).total_seconds() / 3600
-        for sign_out in sign_ins
-    ]
+        # Most popular class calculation
+        class_popularity_query = db.session.query(
+            SignInData.class_selected,
+            func.count(SignInData.id)
+        ).filter(
+            SignInData.sign_in_timestamp.between(current_term.start_date, current_term.end_date),
+            SignInData.ip_location_id == lab_id
+        ).group_by(SignInData.class_selected).order_by(func.count(SignInData.id).desc()).first()
 
-    # Calculate advanced statistics
-    std_deviation = np.std(session_durations)
-    variance = np.var(session_durations)
-    median = np.median(session_durations)
+        stats["most_popular_class"] = class_popularity_query.class_selected if class_popularity_query else None
 
-    # Hourly attendance calculation
-    hourly_attendance = defaultdict(int)
-    for record in sign_ins:
-        hour = record.sign_in_timestamp.hour
-        hourly_attendance[hour] += 1
+        # Hourly and Daily attendance calculations
+        hourly_attendance = defaultdict(int)
+        for record in sign_ins:
+            hour = record.sign_in_timestamp.hour
+            hourly_attendance[hour] += 1
 
-    # Convert to a format suitable for JSON
-    hourly_attendance_json = [
-        {"hour": hour, "attendance": round(count, 2)} for hour, count in hourly_attendance.items()
-    ]
+        stats["hourly_attendance"] = [{"hour": hour, "attendance": round(count, 2)} for hour, count in hourly_attendance.items()]
 
-    # Daily attendance calculation with day names
-    daily_attendance = defaultdict(int)
-    for record in sign_ins:
-        day_name = calendar.day_name[record.sign_in_timestamp.weekday()]
-        daily_attendance[day_name] += 1
+        daily_attendance = defaultdict(int)
+        for record in sign_ins:
+            day_name = calendar.day_name[record.sign_in_timestamp.weekday()]
+            daily_attendance[day_name] += 1
 
-    # Convert to a format suitable for JSON
-    daily_attendance_json = [
-        {"day": day, "attendance": round(count, 2)} for day, count in daily_attendance.items()
-    ]
+        stats["daily_attendance"] = [{"day": day, "attendance": round(count, 2)} for day, count in daily_attendance.items()]
 
-    # Add the calculated values to the stats dictionary
-
-    stats["daily_attendance"] = daily_attendance_json
-    stats["busiest_day"] = busiest_day
-    stats["average_session_duration"] = round(average_session_duration, 2)
-    stats["peak_hour"] = peak_hour
-    stats["busiest_day"] = busiest_day
-    stats["new_students"] = new_students
-    stats["returning_students"] = returning_students
-    stats["most_popular_class"] = most_popular_class
-    stats["std_deviation"] = round(std_deviation, 2)
-    stats["variance"] = round(variance, 2)
-    stats["median"] = round(median, 2)
-    stats["hourly_attendance"] = hourly_attendance_json
+    current_app.logger.debug(f"Stats: {stats}")
 
     # Return the final stats dictionary
     return stats

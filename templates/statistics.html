@@ -72,7 +72,7 @@
         <script>
         document.addEventListener("DOMContentLoaded", function() {
             var ctx = document.getElementById('attendanceChart').getContext('2d');
-            var attendanceData = {{ stats.hourly_attendance | tojson }};
+            var attendanceData = {{ stats.hourly_attendance | tojson | default('[]') }};
             var hourlyAttendance = new Array(24).fill(0); // Initialize array for 24 hours
 
             // Populate the hourlyAttendance array with your data
@@ -103,7 +103,7 @@
 
         // Daily Attendance Chart
         var dailyCtx = document.getElementById('dailyAttendanceChart').getContext('2d');
-            var dailyAttendanceData = {{ stats.daily_attendance | tojson }};
+            var dailyAttendanceData = {{ stats.daily_attendance | tojson | default('[]') }};
             var dailyLabels = dailyAttendanceData.map(function(data) { return data.day; });
             var dailyAttendance = dailyAttendanceData.map(function(data) { return data.attendance; });
 

@@ -1,6 +1,6 @@
 from cryptography.fernet import Fernet
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, session
-from flask_login import login_user, logout_user
+from flask_login import login_user, logout_user, login_required
 from app.models import User
 from app.forms import LoginForm
 from app.admin import create_admin
@@ -48,12 +48,11 @@ def login():
     return render_template('login.html', form=form)
 
 
-@auth_bp.route('/logout', methods=['POST'])
+@auth_bp.route('/logout')
+@login_required
 def logout():
     logout_user()
-    # Clear all session variables on logout
-    session.clear()
-    flash('You have been logged out.')
+    flash('Logged out successfully.', 'success')
     return redirect(url_for('auth.login'))
 
 

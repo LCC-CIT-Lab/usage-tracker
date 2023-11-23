@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
-from wtforms import RadioField, StringField, SelectField, SubmitField, HiddenField, PasswordField, TextAreaField
-from wtforms.validators import DataRequired, InputRequired, IPAddress, Optional
+from wtforms import RadioField, StringField, SelectField, SubmitField, HiddenField, PasswordField, TextAreaField, BooleanField
+from wtforms.validators import DataRequired, InputRequired, IPAddress, Optional, Email
 from wtforms.fields import DateField
 from flask_wtf.file import FileField, FileAllowed, FileRequired
 
@@ -65,14 +65,14 @@ class QuerySelectionForm(FlaskForm):
 
 
 class AddIPMappingForm(FlaskForm):
-    ip_address = StringField('IP Address', validators=[DataRequired(), IPAddress()])
+    ip_address = StringField('Station IP Address', validators=[DataRequired(), IPAddress()])
     location_name = StringField('Location Name', validators=[DataRequired()])
-    submit = SubmitField('Add IP Mapping')
+    submit = SubmitField('Add Location Name')
 
 
 class RemoveIPMappingForm(FlaskForm):
     remove_ip_id = SelectField('IP Location', coerce=int)
-    remove_submit = SubmitField('Remove IP Mapping')
+    remove_submit = SubmitField('Remove Mapping')
 
 
 class TermDatesForm(FlaskForm):
@@ -96,3 +96,17 @@ class ManageEmailsForm(FlaskForm):
     subject = StringField('Subject', validators=[DataRequired()])
     body = TextAreaField('Body', validators=[DataRequired()])
     submit = SubmitField('Save Changes')
+
+
+class ToggleManualSignInForm(FlaskForm):
+    manual_signin_enabled = BooleanField('Enable Manual Sign-In')
+    location_id = SelectField('Location', coerce=int, choices=[])
+    manual_class_options = StringField('Manual Class Options', description='Enter class options separated by commas')
+    signout_comment_email = StringField('Email for Sign-out Comments', validators=[Optional(), Email()], description='Enter the email address to receive sign-out comments')
+    csv_file = FileField('Upload L-numbers (CSV)', validators=[Optional(), FileAllowed(['csv'], 'CSV files only')])
+    submit = SubmitField('Update Settings')
+
+
+class QRCodeForm(FlaskForm):
+    location_id = SelectField('Location', coerce=int)
+    submit = SubmitField('Generate QR Code')

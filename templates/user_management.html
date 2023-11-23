@@ -24,16 +24,6 @@
                     <div class="checkbox-group">
                         <label><input type="checkbox" name="is_admin"> Admin?</label>
                     </div>
-                    <div class="checkbox-group">
-                        <label>
-                            <input type="checkbox" id="toggle-message-permission"> Can Set Message?
-                        </label>
-                    </div>
-                    <div class="checkbox-group">
-                        <label>
-                            <input type="checkbox" id="toggle-email-permission"> Can Manage Email?
-                        </label>
-                    </div>    
                     <button type="submit" class="form-button">Add User</button>
                 </form>
             </div>
@@ -54,7 +44,7 @@
                 </form>
 
                 <!-- IP Mapping and Permissions Form -->
-                <form method="POST" action="{{ url_for('admin.assign_ip_mappings') }}">
+                <form method="POST" action="{{ url_for('admin.update_user_mappings') }}">
                     {{ form.hidden_tag() }}  <!-- Include CSRF token -->
                     <input type="hidden" name="selected_user_id" value="{{ selected_user_id }}">
                     
@@ -64,17 +54,6 @@
                         <option value="{{ ip_location.id }}">{{ ip_location.location_name }}</option>
                         {% endfor %}
                     </select>
-                    
-                    <!-- Toggle Permissions -->
-                    <label>
-                        <input type="checkbox" name="can_set_message" {% if user_can_set_message %} checked {% endif %}>
-                        Can Set Message
-                    </label>
-                    <label>
-                        <input type="checkbox" name="can_manage_email" {% if user_can_manage_email %} checked {% endif %}>
-                        Can Manage Email
-                    </label>
-
                     <input type="submit" value="Update Settings">
                 </form>
                 </div>
@@ -87,10 +66,7 @@
                 </div>
                 <!-- Logout Button -->
                 <div>
-                    <form action="{{ url_for('auth.logout') }}" method="post">
-                        {{ logout_form.hidden_tag() }}
-                        <button type="submit" class="buttonsignout">Logout</button>
-                    </form>
+                    <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
                 </div>
             </div>
         </div>

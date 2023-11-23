@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Generate QR Code</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
+</head>
+<body>
+    <div class="dashboard-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}" id="flash-message">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="dashboard-header">
+            <div class="dashboard-header-signin">
+                <h2>Admin Dashboard</h2>
+            </div>
+            <h1>Generate QR Code for Location</h1>
+            <form action="{{ url_for('admin.generate_qr_code') }}" method="post">
+                {{ form.hidden_tag() }}
+                {{ form.location_id.label }} {{ form.location_id }}
+                {{ form.submit }}
+            </form>
+            {% if qr_image_base64 %}
+            <img src="data:image/png;base64,{{ qr_image_base64 }}" alt="QR Code">
+            {% endif %}
+            <br><br><br>
+            <div class="button-container">
+                <!-- Back Button -->
+                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                
+                <!-- Logout Button -->
+                <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

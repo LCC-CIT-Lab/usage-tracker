@@ -2,13 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard</title>
+    <title>Custom Location Name</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
 </head>
 <body>
-
     <div class="dashboard-container">
-        <!-- Add this part to display flashed messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
@@ -17,42 +15,51 @@
         {% endif %}
         {% endwith %}
 
-        <!-- Add IP Mapping Form -->
         <div class="dashboard-header">
             <div class="dashboard-header-signin">
-                <h2>IP Management</h2>
+                <h2>Custom Location Name</h2>
             </div>
+            <div class="current-ip">
+                <h3>Your Current IP: {{ user_ip }}</h3>
+            </div>
+            <!-- Add IP Mapping Form -->
             <div class="add-ip-form">
-                <h3>Add IP Mapping</h3>
+                <h3>Add a location name to the sign-in station's IP address.</h3>
                 <form method="post" action="{{ url_for('admin.ip_management') }}">
                     {{ add_ip_form.hidden_tag() }}
-                        <div>
-                            {{ add_ip_form.ip_address.label }}: 
-                            {{ add_ip_form.ip_address(size=10) }}
-                        </div>
-                        <br>
-                        <div>
-                            {{ add_ip_form.location_name.label }}: 
-                            {{ add_ip_form.location_name(size=10) }}
-                        </div>
-                        <br>
+                    <div>
+                        {{ add_ip_form.ip_address.label }}: 
+                        {{ add_ip_form.ip_address(size=10, placeholder=user_ip) }}
+                    </div>
+                    <br>
+                    <div>
+                        {{ add_ip_form.location_name.label }}: 
+                        {{ add_ip_form.location_name(size=10) }}
+                    </div>
+                    <br>
                     {{ add_ip_form.submit() }}
                 </form>
             </div>
+
             <br>
-            <div>
-                <h3>Delete IP Mapping</h3>
-            <form method="post" action="{{ url_for('admin.remove_ip_mapping') }}">
-                {{ remove_ip_form.hidden_tag() }}
-                <select name="remove_ip_id">
-                    {% for ip_mapping in ip_mappings %}
-                    <option value="{{ ip_mapping.id }}">{{ ip_mapping.ip_address }} - {{ ip_mapping.location_name }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" class="buttonsignout" onclick="return confirm('Are you sure?');">Delete</button>
-            </form>
+
+            <!-- Delete IP Mapping Form -->
+            <div class="delete-ip-form">
+                <h3>Delete Location Mapping</h3>
+                <form method="post" action="{{ url_for('admin.remove_ip_mapping') }}">
+                    {{ remove_ip_form.hidden_tag() }}
+                    <select name="remove_ip_id">
+                        {% for ip_mapping in ip_mappings %}
+                        <option value="{{ ip_mapping.id }}">{{ ip_mapping.ip_address }} - {{ ip_mapping.location_name }}</option>
+                        {% endfor %}
+                    </select>
+                    {{ remove_ip_form.remove_submit() }}
+                </form>
             </div>
+
             <br><br><br>
+
+            <!-- Navigation Buttons -->
             <div class="button-container">
                 <!-- Back Button -->
                 <div>
@@ -60,10 +67,7 @@
                 </div>
                 <!-- Logout Button -->
                 <div>
-                    <form action="{{ url_for('auth.logout') }}" method="post">
-                        {{ logout_form.hidden_tag() }}
-                        <button type="submit" class="buttonsignout">Logout</button>
-                    </form>
+                    <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
                 </div>
             </div>
         </div>

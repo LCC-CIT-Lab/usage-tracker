@@ -22,38 +22,27 @@
         
             <p>Welcome, {{ current_user.username }}!</p>
             <ul class="dashboard-menu">
-                <!-- Displayed to non-admin users -->
-                <li>- <a href="{{ url_for('admin.query_selection') }}" autofocus=true>Query Selection</a></li>
-                {% if is_admin %}
-                <!-- Only display this part to admin users -->
-                <li>- <a href="{{ url_for('admin.ip_management') }}">IP Station to Location Name Mapping</a></li>
-                <li>- <a href="{{ url_for('admin.term_dates_management') }}">Term Dates Management</a></li>
-                <li>- <a href="{{ url_for('admin.user_management') }}">Admin User Management</a></li>
+                <!-- New User Links -->
+                <li>- <a href="{{ url_for('admin.ip_management') }}">Configure Location</a></li>
+                <li>- <a href="{{ url_for('admin.set_message', lab_location_id=lab_location_id) }}">Customize Landing</a></li>
+                <li>- <a href="{{ url_for('admin.manage_emails') }}">Toggle Welcome Email</a></li>
+                <li>- <a href="{{ url_for('admin.toggle_manual_signin') }}">Toggle Manual Sign-in</a></li> <!-- New Route for Manual Sign-in -->
+                <li>- <a href="{{ url_for('admin.generate_qr_code') }}">Generate QR Code</a></li> <!-- New Route for QR Code Generation -->
+                <li>- <a href="{{ url_for('admin.query_selection') }}">Download Data</a></li>
                 <li>- <a href="{{ url_for('admin.view_logs') }}">View Logs</a></li>
+
+                {% if is_admin %}
+                <!-- Admin User Links -->
+                <li>- <a href="{{ url_for('admin.term_dates_management') }}">Term Dates Management</a></li>
+                <li>- <a href="{{ url_for('admin.user_management') }}">User Management</a></li>
+                <li>- <a href="{{ url_for('admin.import_db') }}">Import / Export db</a></li> <!-- New Route for Import/Export -->
                 {% endif %}
-                <li>
-                    {% if current_user.can_set_message and lab_location_id %}
-                    - <a href="{{ url_for('admin.set_message', lab_location_id=lab_location_id) }}">Set Message</a>
-                    {% else %}
-                    - <span>Set Message (Unavailable)</span>
-                    {% endif %}
-                </li>
-                <li>
-                    {% if current_user.can_manage_email %}
-                    <a href="{{ url_for('admin.manage_emails', lab_id=default_lab_id) }}">Manage Emails</a>
-                    {% else %}
-                    - <span>Manage Emails (Unavailable)</span>
-                    {% endif %}
-                </li>
             </ul>
             <br><br><br>
             <div class="button-containerdashboard">
                 <!-- Logout Button -->
                 <div>
-                    <form action="{{ url_for('auth.logout') }}" method="post">
-                        {{ logout_form.hidden_tag() }}
-                        <button type="submit" class="buttonsignout">Logout</button>
-                    </form>
+                    <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
                 </div>
             </div>
         </div>
@@ -68,6 +57,6 @@
             }
           }, 5000); // 5000 milliseconds = 5 seconds
         };
-      </script>
+    </script>
 </body>
 </html>
