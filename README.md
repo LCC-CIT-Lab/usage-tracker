@@ -2,16 +2,19 @@
 
 ## Overview
 
-This Flask-based web application provides a sophisticated platform for managing lab attendance in educational institutions. It features robust functionalities including user sign-in/out, authentication, data management, IP mapping, message setting, and comprehensive admin controls. The system is adept at secure data processing, encryption, emailing, and offers a detailed logging mechanism.
+The Online Lab Attendance System is a Flask-based web application designed for managing lab attendance in educational institutions. It automates the process of student sign-ins/outs and provides administrators with robust tools for user and data management. The application integrates secure authentication, IP mapping, a messaging system, and various administrative functionalities.
 
 ## Key Features
 
-- Student sign-in/out with lab session tracking.
-- Admin dashboard for user and data management.
-- IP mapping for lab locations.
-- Secure messaging system for lab announcements.
-- Extensive error handling and data encryption.
-- Email functionalities for query and notifications.
+- Student Sign-In/Out: Tracks student attendance with lab session logging.
+- Admin Dashboard: Manages users, IP mappings, term dates, messages, and data queries.
+- IP Mapping: Associates lab locations with IP addresses for accurate tracking.
+- Messaging System: Allows admins to post lab-specific announcements.
+- Data Management: Queries and downloads attendance data; handles manual sign-in settings.
+- Automatic Student Sign-Out: Signs out students automatically at a specified time.
+- Feedback System: Users can send feedback or report issues via email.
+- QR Code Generation: Creates QR codes for easy lab location access.
+- Secure Logging: Maintains detailed logs of application activities.
 
 ## Getting Started
 
@@ -96,6 +99,8 @@ The application's configuration, including database setup, SMTP settings, and en
 - Jinja2: Templating engine.
 - WTForms: Form handling.
 - Cryptography: Secure token handling and encryption.
+- msmtp: Email client for sending notifications and queries.
+- Paramiko: SSH interaction for file access.
 
 ## Dependencies
 
@@ -117,16 +122,3 @@ Developed by LCC-CIT-Lab, this project aims to streamline lab attendance managem
 - GitHub: @LCC-CIT-Lab
 - Email: CITLab@lanecc.edu
 
-## Additional Features and To-Dos
-
-### Upcoming Features
-
-- More detailed statistics on lab usage (`more_statistics.html`).
-- Gamification elements for student engagement (`gamification.html`).
-- Instructor module for class and attendance management (`instructor.html`).
-
-### To-Dos
-
-- CSV file upload for term date management in `term_management.html`.
-- Verify log deletion and auto sign-out.
-- Implement logout form as a Flask-WTForms component.
