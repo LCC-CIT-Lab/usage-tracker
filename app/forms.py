@@ -18,6 +18,8 @@ class LandingForm(FlaskForm):
 class SignInForm(FlaskForm):
     l_number = StringField('L Number', validators=[DataRequired()], render_kw={'readonly': True})
     class_selected = RadioField('Class', coerce=str, validators=[DataRequired()], choices=[])
+    sign_in_comment = TextAreaField('Sign In Comment', validators=[Optional()])
+
 
     def __init__(self, *args, **kwargs):
         super(SignInForm, self).__init__(*args, **kwargs)
@@ -45,11 +47,11 @@ class AddUserForm(FlaskForm):
 
 
 class QuerySelectionForm(FlaskForm):
-    term_date_range = SelectField('Term Date Range', choices=[])
-    start_date = DateField('Start Date', validators=[Optional()])
-    end_date = DateField('End Date', validators=[Optional()])
+    term_date_range = SelectField('Term Date Range: ', choices=[])
+    start_date = DateField('Start Date: ', validators=[Optional()])
+    end_date = DateField('End Date: ', validators=[Optional()])
     submit = SubmitField('Generate Report')
-    location_name = SelectField('Location or Complete Term', coerce=str, validators=[Optional()])
+    location_name = SelectField('Location: ', coerce=str, validators=[Optional()])
 
 
     def validate(self, **kwargs):
@@ -95,6 +97,7 @@ class MessageForm(FlaskForm):
 class ManageEmailsForm(FlaskForm):
     subject = StringField('Subject', validators=[DataRequired()])
     body = TextAreaField('Body', validators=[DataRequired()])
+    custom_email = StringField('Custom Email', validators=[Optional(), Email()])
     submit = SubmitField('Save Changes')
 
 
@@ -102,7 +105,6 @@ class ToggleManualSignInForm(FlaskForm):
     manual_signin_enabled = BooleanField('Enable Manual Sign-In')
     location_id = SelectField('Location', coerce=int, choices=[])
     manual_class_options = StringField('Manual Class Options', description='Enter class options separated by commas')
-    signout_comment_email = StringField('Email for Sign-out Comments', validators=[Optional(), Email()], description='Enter the email address to receive sign-out comments')
     csv_file = FileField('Upload L-numbers (CSV)', validators=[Optional(), FileAllowed(['csv'], 'CSV files only')])
     submit = SubmitField('Update Settings')
 
@@ -110,3 +112,9 @@ class ToggleManualSignInForm(FlaskForm):
 class QRCodeForm(FlaskForm):
     location_id = SelectField('Location', coerce=int)
     submit = SubmitField('Generate QR Code')
+
+
+class FeedbackForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    message = TextAreaField('Message', validators=[DataRequired()])
+    submit = SubmitField('Submit')

@@ -45,38 +45,13 @@
                 {% endif %}
             {% endif %}
             <div class="bottomstats">
-                <span id="sign-in-count" data-lab-id="{{ lab_id }}">Loading...</span>
+                <span id="sign-in-count">{{ sign_in_count }} users signed in</span>
                 <br>
                 <a href="{{ url_for('main.statistics', lab_id=lab_id) }}">Statistics</a> -
                 <a href="{{ url_for('auth.login') }}">Admin</a>
             </div>
         </div>
     </div>
-    <script>
-        $(document).ready(function() {
-            function updateSignedInCount() {
-                var labId = $('#sign-in-count').data('lab-id'); // Correct the case to match the data attribute
-                if (labId && labId !== 'None') {  // Check if labId is not null, undefined, or 'None'
-                    $.ajax({
-                        url: '/current_sign_ins/' + labId,
-                        type: 'GET',
-                        dataType: 'json',
-                        success: function(response) {
-                            $('#sign-in-count').text(response.count + ' users signed in');
-                        },
-                        error: function() {
-                            $('#sign-in-count').text('Error getting users');
-                        }
-                    });
-                } else {
-                    console.error('Invalid lab ID');
-                    $('#sign-in-count').text('Invalid lab ID');
-                }
-            }
-            updateSignedInCount();
-        });
-
-    </script>
     <script>
         // Handle 'Enter' key for form submission
         document.getElementById('l_number').addEventListener('keypress', function(event) {

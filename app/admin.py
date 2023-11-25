@@ -1,23 +1,24 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, current_app, jsonify, session, send_file
-from flask_login import login_required, current_user, logout_user
+from flask_login import login_required, current_user
 from app.utils import delete_old_logs, get_lab_info
 from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage, SignInData, EmailTemplate, ManualSignInSettings
-from app.forms import LoginForm, LogoutForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, UploadCSVForm, TermDatesForm, ManageEmailsForm, ToggleManualSignInForm, QRCodeForm
+from app.forms import LoginForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, UploadCSVForm, TermDatesForm, ManageEmailsForm, ToggleManualSignInForm, QRCodeForm, FeedbackForm
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 from io import StringIO, BytesIO
+from email.mime.text import MIMEText
 
 import logging
 import traceback
 import csv
 import os
-import io
 import qrcode
-import itertools
 import base64
 import shutil
+import subprocess
+
 
 
 admin_bp = Blueprint('admin', __name__)
@@ -34,19 +35,6 @@ def require_admin(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_admin:
             flash('Access denied: You do not have the necessary permissions.', 'error')
-            return redirect(url_for('auth.login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
-def logout_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        logout_form = LogoutForm()
-        if logout_form.validate_on_submit():
-            logout_user()
-            session.clear()
-            flash('Logged out successfully.', 'success')
             return redirect(url_for('auth.login'))
         return f(*args, **kwargs)
     return decorated_function
@@ -111,10 +99,10 @@ def create_admin(app):
 # Function to sign in to the admin dashboard
 @admin_bp.route('/admin_dashboard', methods=['GET', 'POST'])
 @login_required
-@logout_required
 def admin_dashboard():
     lab_info = get_lab_info(request.remote_addr)
     lab_location_name, lab_location_id = lab_info  # Unpack the tuple
+    session.pop('csv_filename', None)
 
     if current_user.is_authenticated:
         # Pass the is_admin variable and the IPLocation instance to the template
@@ -130,7 +118,6 @@ def admin_dashboard():
 
 @admin_bp.route('/query_selection', methods=['GET', 'POST'])
 @login_required
-@logout_required
 def query_selection():
     form = QuerySelectionForm()
     term_dates = TermDates.query.all()
@@ -142,31 +129,27 @@ def query_selection():
     ]
 
     # Populate location choices with "Complete Term" option
-    user_ip_locations = IPLocation.query.filter(
-        IPLocation.mapped_users.any(User.id == current_user.id)
-    ).all()
-    form.location_name.choices = [('Complete Term', 'Complete Term')] + \
-                                 [(loc.location_name, loc.location_name) for loc in user_ip_locations]
+    user_ip_locations = current_user.ip_locations
+    form.location_name.choices = [('0', 'All Assigned Locations')] + \
+                                 [(str(loc.id), loc.location_name) for loc in user_ip_locations]
 
     data = None  # Initialize data to None
 
     if form.validate_on_submit():
-        term_date = TermDates.query.get(form.term_date_range.data)
+        selected_location = form.location_name.data
+        start_date, end_date = get_date_range(form, term_dates)
 
-        if term_date:
-            start_date = term_date.start_date
-            end_date = term_date.end_date + timedelta(days=1)
-            location_name = form.location_name.data
+        if selected_location == '0':  # Check if 'All Assigned Locations' is selected
+            location_ids = [loc.id for loc in user_ip_locations]
+        else:
+            selected_location_id = int(selected_location)
+            location_ids = [selected_location_id] if selected_location_id in [loc.id for loc in user_ip_locations] else []
 
-            if location_name == 'Complete Term':
-                data = SignInData.query.filter(
-                    SignInData.sign_in_timestamp.between(start_date, end_date)
-                ).all()
-            else:
-                data = SignInData.query.filter(
-                    SignInData.sign_in_timestamp.between(start_date, end_date),
-                    SignInData.ip_location.has(IPLocation.location_name == location_name)
-                ).all()
+        data = SignInData.query.filter(
+            SignInData.sign_in_timestamp.between(start_date, end_date),
+            SignInData.ip_location_id.in_(location_ids)
+        ).all()
+
         
         if data:
             # Generate CSV
@@ -188,10 +171,20 @@ def query_selection():
                 f.write(output.getvalue())
             session['csv_filename'] = csv_filename
 
-            return render_template('query_selection.html', form=form, term_dates=term_dates, csv_filename=csv_filename)
+            return render_template('query_selection.html', form=form, user_lab_locations=user_ip_locations, term_dates=term_dates, csv_filename=csv_filename)
 
-    return render_template('query_selection.html', form=form, term_dates=term_dates, csv_filename=None)
+    return render_template('query_selection.html', form=form, user_lab_locations=user_ip_locations, term_dates=term_dates, csv_filename=None)
 
+
+def get_date_range(form, term_dates):
+    """Get the date range from the form selection or term dates."""
+    if form.term_date_range.data and form.term_date_range.data != '0':
+        # Find the term date from the list based on the selected ID
+        term_date = next((td for td in term_dates if str(td.id) == form.term_date_range.data), None)
+        if term_date:
+            return term_date.start_date, term_date.end_date + timedelta(days=1)
+    return form.start_date.data, form.end_date.data
+    
 
 # ADMIN USER MANAGEMENT #
 #########################
@@ -199,7 +192,6 @@ def query_selection():
 @admin_bp.route('/user_management', methods=['GET', 'POST'])
 @login_required
 @require_admin
-@logout_required
 def user_management():
     
     # Clear the session variable when the page loads
@@ -336,7 +328,6 @@ def delete_user(user):
 @admin_bp.route('/term_dates_management', methods=['GET', 'POST'])
 @login_required
 @require_admin
-@logout_required
 def term_dates_management():
     form = TermDatesForm()
     upload_csv_form = UploadCSVForm()  # Instantiate the form for CSV upload
@@ -448,7 +439,6 @@ def upload_term_dates_csv():
 ##########################
 @admin_bp.route('/set_message', methods=['GET', 'POST'])
 @login_required
-@logout_required
 def set_message():
     if not current_user.ip_locations:
         flash('You do not have permission to set messages.', 'error')
@@ -498,10 +488,11 @@ def delete_message(message_id):
 ##########################
 @admin_bp.route('/ip_management', methods=['GET', 'POST'])
 @login_required
-@logout_required
 def ip_management():
     add_ip_form = AddIPMappingForm()
     remove_ip_form = RemoveIPMappingForm()
+    user_ip = request.remote_addr
+
 
     # For admin users, show all IP mappings. For non-admin, show only their mappings.
     if current_user.is_admin:
@@ -540,7 +531,7 @@ def ip_management():
                 db.session.commit()
                 flash('IP mapping removed successfully.', 'success')
 
-    return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form, ip_mappings=ip_locations)
+    return render_template('ip_management.html', add_ip_form=add_ip_form, remove_ip_form=remove_ip_form, ip_mappings=ip_locations, user_ip=user_ip)
 
 
 @admin_bp.route('/admin/update_user_mappings', methods=['POST'])
@@ -633,7 +624,6 @@ def get_user_ip_mappings(user_id):
 @admin_bp.route('/logs')
 @login_required
 @require_admin
-@logout_required
 def view_logs():
 
     page = request.args.get('page', 1, type=int)  # Get the current page number
@@ -655,7 +645,6 @@ def setup_logging(app):
 
 @admin_bp.route('/download_csv/<filename>')
 @login_required
-@require_admin
 def download_csv(filename):
     # Make sure the filename is safe
     if '..' in filename or filename.startswith('/'):
@@ -717,7 +706,6 @@ def download_logs():
 ############################
 @admin_bp.route('/manage_emails', methods=['GET', 'POST'])
 @login_required
-@logout_required
 def manage_emails():
     lab_id = request.args.get('lab_id', type=int)
     form = ManageEmailsForm()
@@ -729,9 +717,32 @@ def manage_emails():
         lab_id = user_lab_locations[0].id  # Default to the first location
 
     lab_location = IPLocation.query.get_or_404(lab_id)
-    email_template = lab_location.email_template
 
-    # Existing POST request handling remains the same
+    # Check if email_template exists, if not, create a new one
+    if not lab_location.email_template:
+        lab_location.email_template = EmailTemplate(
+            subject="Default Subject",
+            body="Default Body",
+            lab_location_id=lab_id
+        )
+        db.session.add(lab_location.email_template)
+        db.session.commit()
+
+    if form.validate_on_submit():
+        # Update the lab_location with form data
+        lab_location.email_template.subject = form.subject.data
+        lab_location.email_template.body = form.body.data
+        lab_location.welcome_email_enabled = 'enable_email' in request.form
+        lab_location.custom_email = form.custom_email.data or current_app.config['smtp']['SUPPORT_EMAIL']
+
+        db.session.commit()
+        flash('Email settings updated successfully.', 'success')
+        return redirect(url_for('admin.manage_emails', lab_id=lab_id))
+
+    # Populate the form with existing data
+    form.subject.data = lab_location.email_template.subject
+    form.body.data = lab_location.email_template.body
+    form.custom_email.data = lab_location.custom_email
 
     return render_template('manage_emails.html', form=form,
                            lab_location=lab_location, lab_id=lab_id, 
@@ -739,10 +750,9 @@ def manage_emails():
                            user_lab_locations=user_lab_locations)
 
 
+
 @admin_bp.route('/admin/generate_qr_code', methods=['GET', 'POST'])
 @login_required
-@require_admin
-@logout_required
 def generate_qr_code():
     form = QRCodeForm()  # Assuming you have a form for location selection
 
@@ -771,8 +781,6 @@ def generate_qr_code():
 
 @admin_bp.route('/toggle_manual_signin', methods=['GET', 'POST'])
 @login_required
-@require_admin
-@logout_required
 def toggle_manual_signin():
     form = ToggleManualSignInForm()
 
@@ -790,10 +798,9 @@ def toggle_manual_signin():
 
         # Class options and sign-out comment email
         class_options = form.manual_class_options.data.split(',') if form.manual_class_options.data else []
-        signout_comment_email = form.signout_comment_email.data or current_app.config['smtp']['SUPPORT_EMAIL']
 
         # Store settings in database or session
-        store_manual_signin_settings(selected_location_id, manual_signin_enabled, l_numbers, class_options, signout_comment_email)
+        store_manual_signin_settings(selected_location_id, manual_signin_enabled, l_numbers, class_options)
 
         flash('Manual sign-in settings updated.', 'success')
         return redirect(url_for('admin.toggle_manual_signin'))
@@ -805,7 +812,7 @@ def toggle_manual_signin():
     return render_template('toggle_manual_signin.html', form=form)
 
 
-def store_manual_signin_settings(location_id, enabled, l_numbers, class_options, email):
+def store_manual_signin_settings(location_id, enabled, l_numbers, class_options):
     # Convert L-numbers list to CSV string
     l_numbers_csv = ','.join(l_numbers)
 
@@ -816,7 +823,6 @@ def store_manual_signin_settings(location_id, enabled, l_numbers, class_options,
         settings.manual_signin_enabled = enabled
         settings.l_numbers_csv = l_numbers_csv
         settings.class_options = ','.join(class_options)
-        settings.signout_comment_email = email
         current_app.logger.info('Updated manual sign-in settings for location {}'.format(location_id))
     else:
         # Create new settings
@@ -825,7 +831,6 @@ def store_manual_signin_settings(location_id, enabled, l_numbers, class_options,
             manual_signin_enabled=enabled,
             l_numbers_csv=l_numbers_csv,
             class_options=','.join(class_options),
-            signout_comment_email=email
         )
         db.session.add(settings)
         current_app.logger.info('Created new manual sign-in settings for location {}'.format(location_id))
@@ -847,13 +852,11 @@ def load_existing_settings(form):
         form.manual_signin_enabled.data = settings.manual_signin_enabled
         form.location_id.data = settings.location_id
         form.manual_class_options.data = settings.class_options
-        form.signout_comment_email.data = settings.signout_comment_email
     else:
         # Default values if no settings are found
         form.manual_signin_enabled.data = False
         form.location_id.data = user_locations[0] if user_locations else None
         form.manual_class_options.data = ''
-        form.signout_comment_email.data = current_app.config['smtp']['SUPPORT_EMAIL']
 
 
 def parse_csv_to_list(csv_content):
@@ -886,7 +889,6 @@ def export_db():
 @admin_bp.route('/import_db', methods=['GET', 'POST'])
 @login_required
 @require_admin
-@logout_required
 def import_db():
     if request.method == 'POST':
         file = request.files.get('file')
@@ -922,3 +924,37 @@ def import_db():
 
 def get_user_by_id(user_id):
     return User.query.get_or_404(user_id)
+
+
+@admin_bp.route('/feedback', methods=['GET', 'POST'])
+@login_required
+def feedback():
+    form = FeedbackForm()
+    if form.validate_on_submit():
+        try:
+            # Prepare the email message
+            msg = MIMEText(form.message.data)
+            msg['Subject'] = f"Feedback from {form.name.data}"
+            msg['From'] = current_user.email
+            msg['To'] = current_app.config['smtp']['SUPPORT_EMAIL']
+
+            # Save the email to a temporary file
+            temp_file = "/tmp/temp_email.txt"
+            with open(temp_file, "w") as file:
+                file.write(msg.as_string())
+
+            # Send the email using msmtp
+            command = f"cat {temp_file} | msmtp -t"
+            subprocess.run(command, shell=True, check=True)
+
+            flash('Thank you for your feedback!', 'success')
+            return redirect(url_for('admin.admin_dashboard'))  # Redirect to homepage or appropriate page
+        except subprocess.CalledProcessError as e:
+            flash('An error occurred while sending your feedback.', 'error')
+            current_app.logger.error(f"Failed to send feedback email: {e}")
+        finally:
+            # Clean up: remove the temporary email file
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+
+    return render_template('feedback.html', form=form)

@@ -41,6 +41,13 @@
                             <div class="error">{{ form.class_selected.errors[0] }}</div>
                         {% endif %}
                     </div>
+                    <div class="form-group">
+                        {{ form.sign_in_comment.label }}
+                        {{ form.sign_in_comment(rows=4, cols=32) }}
+                        {% if form.sign_in_comment.errors %}
+                            <div class="error">{{ form.sign_in_comment.errors[0] }}</div>
+                        {% endif %}
+                    </div>
                 </form>
             </div>
             <!-- Flash Messages -->

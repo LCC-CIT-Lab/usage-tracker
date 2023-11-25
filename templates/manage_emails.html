@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard</title>
+    <title>Manage Emailing</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
 </head>
 <body>
@@ -16,9 +16,11 @@
             {% endfor %}
         {% endif %}
         {% endwith %}
-        
-        <h2>Manage Welcome Email for {{ lab_location.location_name }}</h2>
-        <div class="select-lab-location">
+        <div class="dashboard-header">
+            <div class="dashboard-header-signin">
+                <h2>Manage Emailing for {{ lab_location.location_name }}</h2>
+            </div>
+            <div class="select-lab-location">
             <h3>Select Location</h3>
             <form method="get" action="{{ url_for('admin.manage_emails') }}">
                 <select name="lab_id">
@@ -28,39 +30,45 @@
                 </select>
                 <input type="submit" value="Select">
             </form>
-        </div>
-        <form action="{{ url_for('admin.manage_emails') }}" method="post">
-            {{ form.hidden_tag() }}
-            <div>
-                {{ form.subject.label }} {{ form.subject(size=32) }}
-                {% if form.subject.errors %}
-                    <div class="error">{{ form.subject.errors[0] }}</div>
-                {% endif %}
-            </div>
-            <div>
-                {{ form.body.label }}
-                {{ form.body(rows=4, cols=32) }}
-                {% if form.body.errors %}
-                    <div class="error">{{ form.body.errors[0] }}</div>
-                {% endif %}
-            </div>
-            <div class="form-group">
-                <label for="enable_email">Enable Welcome Email:</label>
-                <input type="checkbox" name="enable_email" id="enable_email" {{ 'checked' if enable_email }}>
-            </div>
-            <div>
-                {{ form.submit() }}
-            </div>
-        </form>
-        <br><br><br>
-        <div class="button-container">
-            <!-- Back Button -->
-            <div>
-                <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
-            </div>
-            <!-- Logout Button -->
-            <div>
-                <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
+            <form action="{{ url_for('admin.manage_emails') }}" method="post">
+                {{ form.hidden_tag() }}
+                <div>
+                    {{ form.subject.label }} {{ form.subject(size=32) }}
+                    {% if form.subject.errors %}
+                        <div class="error">{{ form.subject.errors[0] }}</div>
+                    {% endif %}
+                </div>
+                <div>
+                    {{ form.body.label }}
+                    {{ form.body(rows=4, cols=32) }}
+                    {% if form.body.errors %}
+                        <div class="error">{{ form.body.errors[0] }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="enable_email">Enable Welcome Email:</label>
+                    <input type="checkbox" name="enable_email" id="enable_email" {{ 'checked' if enable_email }}>
+                </div>
+                <div>
+                    {{ form.custom_email.label }} {{ form.custom_email(size=32) }}
+                    {% if form.custom_email.errors %}
+                        <div class="error">{{ form.custom_email.errors[0] }}</div>
+                    {% endif %}
+                </div>
+                <div>
+                    {{ form.submit() }}
+                </div>
+            </form>
+            <br><br><br>
+            <div class="button-container">
+                <!-- Back Button -->
+                <div>
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="button">Back</a>
+                </div>
+                <!-- Logout Button -->
+                <div>
+                    <a href="{{ url_for('auth.logout') }}" class="buttonsignout">Logout</a>
+                </div>
             </div>
         </div>
     </div>

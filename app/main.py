@@ -1,8 +1,9 @@
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash, session, current_app, send_from_directory
+from flask_wtf.csrf import CSRFError
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 from datetime import datetime, time
 from email.mime.text import MIMEText
-from app.models import db, SignInData, IPLocation, TermDates, LabMessage, User, ManualSignInSettings
+from app.models import db, SignInData, IPLocation, TermDates, LabMessage, ManualSignInSettings
 from app.forms import LandingForm, SignInForm, SignOutForm
 from app.utils import get_lab_info, delete_old_logs
 from paramiko import util
@@ -61,41 +62,50 @@ def landing():
     else:
         messages = None
 
-    if form.validate_on_submit():
-        l_number = form.l_number.data
+    # Count currently signed in users for this lab location
+    sign_in_count = current_sign_ins(lab_id)
+    current_app.logger.info(f"current sign ins {sign_in_count}.")
 
-        # Load manual sign-in settings from database
-        settings = ManualSignInSettings.query.first()
+    try:
+        if form.validate_on_submit():
+            l_number = form.l_number.data
 
-        if settings and settings.manual_signin_enabled:
-            l_numbers_list = parse_csv_to_list(settings.l_numbers_csv)
-            if not l_numbers_list or l_number in l_numbers_list:
-                session['l_number'] = l_number
-                action = choosesignout(l_number)
+            # Load manual sign-in settings from database
+            settings = ManualSignInSettings.query.first()
+
+            if settings and settings.manual_signin_enabled:
+                l_numbers_list = parse_csv_to_list(settings.l_numbers_csv)
+                if not l_numbers_list or l_number in l_numbers_list:
+                    session['l_number'] = l_number
+                    action = choosesignout(l_number)
+                else:
+                    flash('Invalid L number, please sign-in again.')
+                    return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages, sign_in_count=sign_in_count)
             else:
-                flash('Invalid L number, please sign-in again.')
-                return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages)
-        else:
-            l_number = normalize_l_number(l_number)
-            if student_exists(l_number):
-                session['l_number'] = l_number
-                action = choosesignout(l_number)
+                l_number = normalize_l_number(l_number)
+                if student_exists(l_number):
+                    session['l_number'] = l_number
+                    action = choosesignout(l_number)
+                else:
+                    flash('Invalid L number, please sign-in again.')
+                    return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages, sign_in_count=sign_in_count)
+
+            # Check if it's the first visit
+            first_visit = SignInData.query.filter_by(l_number=l_number).count() == 0
+            if first_visit and lab_location and lab_location.welcome_email_enabled:
+                send_welcome_email(l_number, lab_id)
+                current_app.logger.info(f"Sending welcome email to {l_number}.")
+
+            if action == 'sign_out':
+                return redirect(url_for('main.sign_out', l_number=l_number))
             else:
-                flash('Invalid L number, please sign-in again.')
-                return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages)
-
-        # Check if it's the first visit
-        first_visit = SignInData.query.filter_by(l_number=l_number).count() == 0
-        if first_visit and lab_location and lab_location.welcome_email_enabled:
-            send_welcome_email(l_number, lab_id)
-            current_app.logger.info(f"Sending welcome email to {l_number}.")
-
-        if action == 'sign_out':
-            return redirect(url_for('main.sign_out', l_number=l_number))
-        else:
-            return redirect(url_for('main.sign_in', l_number=l_number))
-
-    return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages)
+                return redirect(url_for('main.sign_in', l_number=l_number))
+            
+        return render_template('landing.html', form=form, lab_location=lab_location, lab_location_name=lab_location_name, lab_id=lab_id, messages=messages, sign_in_count=sign_in_count)
+    
+    except CSRFError as e:
+        flash('Session has expired. Please refresh the page.', 'warning')
+        return redirect(url_for('main.landing'))
 
 
 def parse_csv_to_list(csv_string):
@@ -191,9 +201,10 @@ def sign_in():
 
     if form.validate_on_submit():
         class_selected = form.class_selected.data
+        sign_in_comment = form.sign_in_comment.data
 
         # Handle sign-in logic
-        process_sign_in(l_number, lab_location_name, class_selected, lab_id)
+        process_sign_in(l_number, lab_location_name, class_selected, lab_id, sign_in_comment)
         flash('Signed in successfully')
         return redirect(url_for('main.landing'))
 
@@ -243,7 +254,9 @@ def process_sign_out(l_number, comment):
         sign_in_record.comments = comment if comment else ""
         if comment:  # Send email only if comment is provided
             try:
-                send_comment_to_support(l_number, comment)
+                lab_location = IPLocation.query.get(sign_in_record.ip_location_id)
+                recipient_email = lab_location.custom_email if lab_location.custom_email else current_app.config['smtp']['SUPPORT_EMAIL']
+                send_comment_to_support(l_number, comment, recipient_email)
             except Exception as e:
                 current_app.logger.error('Problem with sending comment to support')
         try:
@@ -303,7 +316,7 @@ def calculate_total_term_time(l_number):
 
 def student_exists(l_number):
     """Check if the student exists in the TSV file."""
-    local_file_path = 'zsrsinf_cit.txt'
+    local_file_path = current_app.config['sshfs']['LOCAL_STUDENT_FILE']
     try:
         # Try reading the file locally
         with open(local_file_path, 'r') as file:
@@ -348,16 +361,26 @@ def student_signed_in_today(l_number):
     return get_student_today(l_number) is not None
 
 
-def process_sign_in(l_number, lab_location_name, class_selected, lab_id):
+def process_sign_in(l_number, lab_location_name, class_selected, lab_id, sign_in_comment):
     sign_in_data = SignInData(
         l_number=l_number,
         lab_location=lab_location_name,
         class_selected=class_selected,
+        ip_location_id=lab_id,
         sign_in_timestamp=datetime.now(),
+        sign_in_comments=sign_in_comment,
     )
+
     db.session.add(sign_in_data)
     try:
         db.session.commit()
+
+        lab_location = IPLocation.query.get(lab_id)
+        if sign_in_comment:
+            recipient_email = lab_location.custom_email if lab_location.custom_email else current_app.config['smtp']['SUPPORT_EMAIL']
+        if lab_id and lab_location.custom_email:
+            send_sign_in_comment_email(l_number, sign_in_comment, recipient_email)
+
         flash('Signed in successfully')
     except Exception as e:
         db.session.rollback()
@@ -454,38 +477,30 @@ def download_csv(filename):
         return redirect(url_for('admin.query_selection'))
 
 
-@main_bp.route('/current_sign_ins/<lab_id>')
 def current_sign_ins(lab_id):
-    if lab_id != 'None' and lab_id.isdigit():
-        lab_id = int(lab_id)
-
-        sign_ins = SignInData.query.join(
-            IPLocation, SignInData.ip_location_id == IPLocation.id
-        ).filter(IPLocation.id == lab_id).all()
-
-        count = len([sign_in for sign_in in sign_ins if sign_in.sign_out_timestamp is None and sign_in.sign_in_timestamp.date() == datetime.now().date()])
-
-        return jsonify(count=count)
-    else:
-        return jsonify({'error': 'Invalid lab ID'}), 404
+    today = datetime.now().date()
+    count = SignInData.query.filter(
+        SignInData.ip_location_id == lab_id,
+        func.date(SignInData.sign_in_timestamp) == today,
+        SignInData.sign_out_timestamp.is_(None)
+    ).count()
+    return count
 
 
-def send_comment_to_support(l_number, comment):
-    email_file_path = '/tmp/email.txt'  # Use a full path, e.g., in /tmp
+def send_comment_to_support(l_number, comment, recipient_email):
+    email_file_path = current_app.config['smtp']['EMAIL_FILE_PATH']  # Use a full path, e.g., in /tmp
 
     try:
         # Email details
-        email = config['smtp']['SUPPORT_EMAIL']
+        email = recipient_email
         subject = "CIT Lab User Comment"
         body = f"Comment from L Number {l_number}:\n\n{comment}\n\nThank you,\n The Sign-in Form"
 
         # Create the email message
         msg = MIMEText(body)
         msg['Subject'] = subject
-        msg['From'] = config['smtp']['SUPPORT_EMAIL']
-        # Use a dynamic email recipient
-        signout_comment_email = session.get('signout_comment_email', config['smtp']['SUPPORT_EMAIL'])
-        msg['To'] = signout_comment_email
+        msg['From'] = current_app.config['smtp']['SUPPORT_EMAIL']
+        msg['To'] = email
 
         # Write the email to a file
         with open(email_file_path, 'w') as file:
@@ -507,6 +522,26 @@ def send_comment_to_support(l_number, comment):
         # Clean up: remove the email file
         if os.path.exists(email_file_path):
             os.remove(email_file_path)
+
+
+def send_sign_in_comment_email(l_number, comment, recipient_email):
+    subject = "Sign-In Comment from " + l_number
+    body = f"Comment from L Number {l_number} at sign-in:\n\n{comment}"
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = current_app.config['smtp']['SUPPORT_EMAIL']
+    msg['To'] = recipient_email
+
+    # Use msmtp or another method to send the email
+    try:
+        # Assuming you have a setup to send emails
+        # For example, using msmtp:
+        with open('/tmp/email.txt', 'w') as file:
+            file.write(msg.as_string())
+        subprocess.run(["msmtp", "-a", current_app.config['smtp']['ACCOUNT'], recipient_email], input=msg.as_string(), text=True)
+        current_app.logger.info("Sign-in comment email sent successfully")
+    except Exception as e:
+        current_app.logger.error(f"Failed to send sign-in comment email: {e}")
 
 
 @main_bp.route('/check-db')

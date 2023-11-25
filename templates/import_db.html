@@ -2,18 +2,28 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Import Export Database</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <title>Custom Location Name</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
 </head>
 <body>
     <div class="dashboard-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
         <div class="dashboard-header">
-            <h2>Import Database</h2>
+            <div class="dashboard-header-signin">
+                <h2>Import Database</h2>
+            </div>
             <form method="post" action="{{ url_for('admin.import_db') }}" enctype="multipart/form-data">
                 <!-- File input for database file -->
                 <input type="file" name="db_file">
                 <!-- Submit button -->
-                <button type="submit">Import Database</button>
+                <button type="submit"  class="button">Import Database</button>
             </form>
             <br>
             <!-- Export Database Section -->

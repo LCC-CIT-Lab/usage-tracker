@@ -9,6 +9,7 @@ SESSION_COOKIE_NAME = "sdgsd"
 [smtp]
 ACCOUNT = "myapp"
 SUPPORT_EMAIL = "rosenauj@my.lanecc.edu"
+EMAIL_FILE_PATH = "/tmp/email.txt"
 
 [flask]
 SQLALCHEMY_DATABASE_URI = "sqlite:///attendance.db"
@@ -20,3 +21,4 @@ HOST = "nlms.lanecc.edu"
 USER = "app"
 PORT = 22
 PRIVATE_KEY_PATH = "app_keys/id_rsa"
+LOCAL_STUDENT_FILE = "zsrsinf_cit.txt"

@@ -22,6 +22,7 @@ class SignInData(db.Model):
     sign_in_timestamp = db.Column(db.DateTime, nullable=False)
     sign_out_timestamp = db.Column(db.DateTime, nullable=True)
     comments = db.Column(db.Text, nullable=True)
+    sign_in_comments = db.Column(db.Text, nullable=True)
     ip_location_id = db.Column(db.Integer, db.ForeignKey('ip_location.id'))
 
 
@@ -50,7 +51,7 @@ class IPLocation(db.Model):
     sign_ins = db.relationship('SignInData', backref='ip_location', lazy='dynamic')
     email_template = db.relationship('EmailTemplate', backref='ip_location', uselist=False, cascade='all, delete-orphan')
     welcome_email_enabled = db.Column(db.Boolean, default=False, nullable=False)
-    email_template = db.relationship('EmailTemplate', backref='ip_location', uselist=False, cascade='all, delete-orphan')
+    custom_email = db.Column(db.String(120), nullable=True)
 
     def __repr__(self):
         return f'<IPLocation {self.ip_address} - {self.location_name}>'
@@ -117,4 +118,3 @@ class ManualSignInSettings(db.Model):
     manual_signin_enabled = db.Column(db.Boolean, default=False)
     l_numbers_csv = db.Column(db.Text)  # Storing L-numbers as a CSV string
     class_options = db.Column(db.Text)  # Storing class options as a comma-separated string
-    signout_comment_email = db.Column(db.String(120))

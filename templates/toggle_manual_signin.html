@@ -48,15 +48,6 @@
                     {% endif %}
                 </div>
     
-                <!-- Sign-out Comment Email Input -->
-                <div class="form-group">
-                    {{ form.signout_comment_email.label }}
-                    {{ form.signout_comment_email(class='form-control') }}
-                    {% if form.signout_comment_email.errors %}
-                        <span class="error">{{ form.signout_comment_email.errors[0] }}</span>
-                    {% endif %}
-                </div>
-    
                 <!-- Enable Manual Sign-in Checkbox -->
                 <div class="form-group">
                     {{ form.manual_signin_enabled.label }}

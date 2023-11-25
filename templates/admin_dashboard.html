@@ -29,13 +29,15 @@
                 <li>- <a href="{{ url_for('admin.toggle_manual_signin') }}">Toggle Manual Sign-in</a></li> <!-- New Route for Manual Sign-in -->
                 <li>- <a href="{{ url_for('admin.generate_qr_code') }}">Generate QR Code</a></li> <!-- New Route for QR Code Generation -->
                 <li>- <a href="{{ url_for('admin.query_selection') }}">Download Data</a></li>
-                <li>- <a href="{{ url_for('admin.view_logs') }}">View Logs</a></li>
+                <li>- <a href="{{ url_for('admin.feedback') }}">Give Feedback</a></li>
+
 
                 {% if is_admin %}
                 <!-- Admin User Links -->
                 <li>- <a href="{{ url_for('admin.term_dates_management') }}">Term Dates Management</a></li>
                 <li>- <a href="{{ url_for('admin.user_management') }}">User Management</a></li>
-                <li>- <a href="{{ url_for('admin.import_db') }}">Import / Export db</a></li> <!-- New Route for Import/Export -->
+                <li>- <a href="{{ url_for('admin.import_db') }}">Import / Export db</a></li>
+                <li>- <a href="{{ url_for('admin.view_logs') }}">View Logs</a></li>
                 {% endif %}
             </ul>
             <br><br><br>

@@ -72,9 +72,13 @@
                     {% endfor %}
                 </div>
                 <div>
-                <!-- Inside the form in query_selection.html -->
                 <div class="form-group">
-                    {{ form.location_name.label }} {{ form.location_name }}
+                    {{ form.location_name.label }} 
+                    <select name="location_name" id="location_name">
+                        {% for loc in user_lab_locations %}
+                            <option value="{{ loc.id }}">{{ loc.location_name }}</option>
+                        {% endfor %}
+                    </select>
                     {% for error in form.location_name.errors %}
                         <span style="color: red;">[{{ error }}]</span>
                     {% endfor %}
@@ -83,10 +87,9 @@
                 </div>
                 <br>
                 <div class="form-group">
-                    {% if csv_filename %}
-                    <!-- Ensure the route and filename are correctly referenced -->
-                    <a href="{{ url_for('admin.download_csv', filename=csv_filename) }}" class="button" download>Download CSV</a>
-                    {% endif %}
+                {% if session.csv_filename %}
+                    <a href="{{ url_for('admin.download_csv', filename=session.csv_filename) }}" class="button" download>Download CSV</a>
+                {% endif %}
                 </div>
             </form>
             <br>

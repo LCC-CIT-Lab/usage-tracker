@@ -26,11 +26,11 @@ def create_app():
     
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_proto=1, x_port=1)
 
-    app.run(ssl_context='adhoc')   # The ssl_context='adhoc' is for demo purposes. Use proper SSL in production.
-
     # Load configuration
     inscopeconfig = load_config()
     app.config.update(inscopeconfig)
+
+    app.run()
 
     csrf = CSRFProtect(app)
 
@@ -70,6 +70,12 @@ def create_app():
     def internal_error(error):
         db.session.rollback()
         return render_template('500.html'), 500
+
+    # Context processor to add logout form to all templates
+    @app.context_processor
+    def inject_logout_form():
+        from app.forms import LogoutForm  # Local import to avoid circular dependency
+        return dict(logout_form=LogoutForm())
 
     # Logging setup
     if not app.debug:

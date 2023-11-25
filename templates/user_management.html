@@ -37,7 +37,7 @@
                     {{ form.hidden_tag() }}  <!-- Include CSRF token -->
                     <select name="selected_user" id="selected_user">
                         {% for user in users %}
-                        <option value="{{ user.id }}">{{ user.username }}</option>
+                        <option value="{{ user.id }}">{{ user.username }} - {{ user.email }}</option>
                         {% endfor %}
                     </select>
                     <input type="submit" value="Select User">
