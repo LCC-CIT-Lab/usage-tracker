@@ -1,11 +1,5 @@
 from datetime import datetime, timedelta
-from app.models import LogEntry, IPLocation, db
-
-
-def delete_old_logs():
-    threshold_date = datetime.utcnow() - timedelta(days=14)
-    LogEntry.query.filter(LogEntry.timestamp <= threshold_date).delete()
-    db.session.commit()
+from app.models import IPLocation, db
 
 
 def get_lab_info(ip_address):

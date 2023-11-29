@@ -1,16 +1,15 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, current_app, jsonify, session, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, session, send_file, Response
 from flask_login import login_required, current_user
-from app.utils import delete_old_logs, get_lab_info
-from app.models import db, User, IPLocation, TermDates, LogEntry, DatabaseLogHandler, LabMessage, SignInData, EmailTemplate, ManualSignInSettings
+from app.utils import get_lab_info
+from app.models import db, User, IPLocation, TermDates, LabMessage, SignInData, EmailTemplate, ManualSignInSettings
 from app.forms import LoginForm, AddUserForm, MessageForm, QuerySelectionForm, AddIPMappingForm, RemoveIPMappingForm, UploadCSVForm, TermDatesForm, ManageEmailsForm, ToggleManualSignInForm, QRCodeForm, FeedbackForm
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 from io import StringIO, BytesIO
 from email.mime.text import MIMEText
 
-import logging
 import traceback
 import csv
 import os
@@ -63,8 +62,6 @@ def sign_out_task():
     app = create_app()  # Create an instance of the app
     with app.app_context():
         sign_out_previous_day_students()
-        delete_old_logs()
-
 
 # Function to create an admin to start off
 def create_admin(app):
@@ -115,65 +112,58 @@ def admin_dashboard():
 
 # Query Selection #
 ###################
-
 @admin_bp.route('/query_selection', methods=['GET', 'POST'])
 @login_required
 def query_selection():
     form = QuerySelectionForm()
     term_dates = TermDates.query.all()
 
-    # Populate term date range choices
+    # Populate form choices
     form.term_date_range.choices = [(0, 'Select Term Date Range')] + [
         (td.id, f"{td.term_name}: {td.start_date.strftime('%Y-%m-%d')} to {td.end_date.strftime('%Y-%m-%d')}")
         for td in term_dates
     ]
-
-    # Populate location choices with "Complete Term" option
-    user_ip_locations = current_user.ip_locations
     form.location_name.choices = [('0', 'All Assigned Locations')] + \
-                                 [(str(loc.id), loc.location_name) for loc in user_ip_locations]
-
-    data = None  # Initialize data to None
+                                 [(str(loc.id), loc.location_name) for loc in current_user.ip_locations]
 
     if form.validate_on_submit():
         selected_location = form.location_name.data
         start_date, end_date = get_date_range(form, term_dates)
 
-        if selected_location == '0':  # Check if 'All Assigned Locations' is selected
-            location_ids = [loc.id for loc in user_ip_locations]
-        else:
-            selected_location_id = int(selected_location)
-            location_ids = [selected_location_id] if selected_location_id in [loc.id for loc in user_ip_locations] else []
-
+        location_ids = [loc.id for loc in current_user.ip_locations] if selected_location == '0' else [int(selected_location)]
         data = SignInData.query.filter(
             SignInData.sign_in_timestamp.between(start_date, end_date),
             SignInData.ip_location_id.in_(location_ids)
         ).all()
 
-        
         if data:
-            # Generate CSV
-            csv_filename = f"attendance_data_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
             output = StringIO()
             writer = csv.writer(output)
-            writer.writerow(["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Comments"])
+            writer.writerow(["L Number", "Lab Location", "Class Selected", "Sign-in Timestamp", "Sign-out Timestamp", "Sign-in Comments", "Sign-out Comments"])
+
             for entry in data:
-                writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp,
-                                 entry.sign_out_timestamp, entry.comments])
-            output.seek(0)
+                sign_out_timestamp = entry.sign_out_timestamp if entry.sign_out_timestamp else default_sign_out(entry.sign_in_timestamp)
+                writer.writerow([entry.l_number, entry.lab_location, entry.class_selected, entry.sign_in_timestamp, sign_out_timestamp, entry.sign_in_comments, entry.comments])
 
-            # Save CSV data
-            csv_folder = os.path.join(current_app.root_path, 'csv_files')
-            if not os.path.exists(csv_folder):
-                os.makedirs(csv_folder)
-            csv_path = os.path.join(csv_folder, csv_filename)
-            with open(csv_path, 'w', newline='') as f:
-                f.write(output.getvalue())
-            session['csv_filename'] = csv_filename
+            session['csv_data'] = output.getvalue()
+            output.close()
+            flash('Report generated successfully.', 'success')
+        else:
+            flash('No data found for the selected criteria.', 'info')
 
-            return render_template('query_selection.html', form=form, user_lab_locations=user_ip_locations, term_dates=term_dates, csv_filename=csv_filename)
+    return render_template('query_selection.html', form=form, user_lab_locations=current_user.ip_locations, term_dates=term_dates)
 
-    return render_template('query_selection.html', form=form, user_lab_locations=user_ip_locations, term_dates=term_dates, csv_filename=None)
+
+def default_sign_out(sign_in_timestamp):
+    return datetime.combine(sign_in_timestamp.date(), time(16, 30))
+
+
+def get_date_range(form, term_dates):
+    if form.term_date_range.data and form.term_date_range.data != '0':
+        term_date = next((td for td in term_dates if str(td.id) == form.term_date_range.data), None)
+        if term_date:
+            return term_date.start_date, term_date.end_date + timedelta(days=1)
+    return form.start_date.data, form.end_date.data
 
 
 def get_date_range(form, term_dates):
@@ -186,9 +176,21 @@ def get_date_range(form, term_dates):
     return form.start_date.data, form.end_date.data
     
 
+@admin_bp.route('/stream_csv')
+@login_required
+def stream_csv():
+    csv_data = session.get('csv_data')
+    if not csv_data:
+        flash('No CSV data found. Please generate the report again.', 'error')
+        return redirect(url_for('admin.query_selection'))
+
+    def generate():
+        yield csv_data
+    return Response(generate(), mimetype='text/csv', headers={"Content-disposition": "attachment; filename=attendance_data.csv"})
+
+
 # ADMIN USER MANAGEMENT #
 #########################
-
 @admin_bp.route('/user_management', methods=['GET', 'POST'])
 @login_required
 @require_admin
@@ -617,91 +619,6 @@ def get_user_ip_mappings(user_id):
     return jsonify(user_details)
 
 
-## LOG DATA PAGE ##
-###################
-
-# Function to add an INFO logging page 
-@admin_bp.route('/logs')
-@login_required
-@require_admin
-def view_logs():
-
-    page = request.args.get('page', 1, type=int)  # Get the current page number
-    per_page = 10  # Set the number of logs per page
-
-    # Use paginate method correctly
-    logs_pagination = LogEntry.query.order_by(LogEntry.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False)
-
-    # Pass logs_pagination to the template
-    return render_template('view_logs.html', logs_pagination=logs_pagination)
-
-
-# Function to start the logging 
-def setup_logging(app):
-    log_handler = DatabaseLogHandler()
-    log_handler.setLevel(logging.INFO)  # Set the log level you want to capture
-    app.logger.addHandler(log_handler)
-
-
-@admin_bp.route('/download_csv/<filename>')
-@login_required
-def download_csv(filename):
-    # Make sure the filename is safe
-    if '..' in filename or filename.startswith('/'):
-        return "Invalid filename", 400
-
-    # Update the path to the csv_files folder
-    csv_folder = os.path.join(current_app.root_path, 'csv_files')
-    csv_path = os.path.join(csv_folder, filename)
-    
-    if os.path.exists(csv_path):
-        return send_file(csv_path, as_attachment=True, mimetype='text/csv', download_name=filename)
-    else:
-        flash('No CSV data found. Please generate the report again.', 'error')
-        return redirect(url_for('admin.query_selection'))
-
-
-@admin_bp.route('/download_logs')
-@login_required
-@require_admin
-def download_logs():
-    try:
-        # Generate a filename for the CSV
-        csv_folder = os.path.join(current_app.root_path, 'logs')
-        if not os.path.exists(csv_folder):
-            os.makedirs(csv_folder)
-        csv_filename = "logs.csv"
-        csv_path = os.path.join(csv_folder, csv_filename)
-        
-        with open(csv_path, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['timestamp', 'user', 'level', 'message'])
-            
-            logs = LogEntry.query.order_by(LogEntry.timestamp.desc()).all()
-            for log in logs:
-                writer.writerow([
-                    log.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                    log.user.username if log.user else 'System',
-                    log.level,
-                    log.message
-                ])
-
-        current_app.logger.info(f"CSV file path: {csv_path}")
-        if os.path.exists(csv_path):
-            current_app.logger.info("CSV file exists, ready for download.")
-        else:
-            current_app.logger.error("CSV file does not exist.")
-
-        # Add the filename to the session or another way to retrieve it
-        session['log_csv_filename'] = csv_filename
-
-        # Redirect or render a template with a link to download the file
-        return send_file(csv_path, as_attachment=True)
-    except Exception as e:
-        current_app.logger.error(f"Error in downloading logs: {e}")
-        flash('Log file not found', 'error')
-        return redirect(url_for('admin.view_logs'))
-    
 # Welcome Email Management #
 ############################
 @admin_bp.route('/manage_emails', methods=['GET', 'POST'])

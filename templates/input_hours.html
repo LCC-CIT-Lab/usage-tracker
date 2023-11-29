@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Input Hours</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <ul class=flashes>
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+        <div class="dashboard-header">
+            <div class="dashboard-header-signin">
+                <h2>Input Hours</h2>
+            </div>
+            <p>Please enter the number of hours you spent in the lab during your last visit.</p>
+            <form method="post">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    {{ form.hours.label }}
+                    {{ form.hours(size=32) }}
+                    {% if form.hours.errors %}
+                        <span class="error">{{ form.hours.errors[0] }}</span>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.submit(class='button') }}
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

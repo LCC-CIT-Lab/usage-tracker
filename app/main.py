@@ -1,11 +1,11 @@
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash, session, current_app, send_from_directory
 from flask_wtf.csrf import CSRFError
 from itsdangerous import URLSafeTimedSerializer, BadSignature
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from email.mime.text import MIMEText
 from app.models import db, SignInData, IPLocation, TermDates, LabMessage, ManualSignInSettings
-from app.forms import LandingForm, SignInForm, SignOutForm
-from app.utils import get_lab_info, delete_old_logs
+from app.forms import LandingForm, SignInForm, SignOutForm, HoursInputForm
+from app.utils import get_lab_info
 from paramiko import util
 from .config import load_config
 from fs.sshfs import SSHFS
@@ -28,9 +28,6 @@ config = load_config()
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-# Configure the logging level for Paramiko to DEBUG
-util.log_to_file('paramiko.log', level=40)
 
 
 def generate_csrf_token(secret_key):
@@ -196,11 +193,26 @@ def sign_in():
 
     l_number = request.args.get('l_number') or session.get('l_number')
     if l_number:
+        # Check for unfinished session
+        unfinished_session = SignInData.query.filter_by(
+            l_number=l_number,
+            sign_out_timestamp=None
+        ).first()
+        if unfinished_session:
+            # Redirect to input hours page
+            return redirect(url_for('main.input_hours', l_number=l_number))
+
         form.l_number.data = l_number
         form.l_number.render_kw = {'readonly': True}
 
     if form.validate_on_submit():
         class_selected = form.class_selected.data
+
+        last_sign_in = SignInData.query.filter_by(l_number=l_number).order_by(
+            SignInData.sign_in_timestamp.desc()).first()
+        if last_sign_in and not last_sign_in.sign_out_timestamp:
+            return redirect(url_for('main.input_hours', l_number=l_number))
+
         sign_in_comment = form.sign_in_comment.data
 
         # Handle sign-in logic
@@ -211,14 +223,31 @@ def sign_in():
     return render_template('sign_in.html', form=form, lab_location_name=lab_location_name)
 
 
+@main_bp.route('/input_hours/<l_number>', methods=['GET', 'POST'])
+def input_hours(l_number):
+    form = HoursInputForm()
+    if form.validate_on_submit():
+        hours = form.hours.data
+        # Fetch the latest sign-in record for l_number
+        last_sign_in = SignInData.query.filter_by(
+            l_number=l_number
+        ).order_by(SignInData.sign_in_timestamp.desc()).first()
+
+        if last_sign_in:
+            # Calculate and set the sign-out timestamp
+            last_sign_in.sign_out_timestamp = last_sign_in.sign_in_timestamp + timedelta(hours=hours)
+            db.session.commit()
+            flash('Hours updated successfully.')
+            return redirect(url_for('main.sign_in'))
+
+    return render_template('input_hours.html', form=form, l_number=l_number)
+
+
 @main_bp.route('/sign-out', methods=['GET', 'POST'])
 def sign_out():
     form = SignOutForm()
     l_number = request.args.get('l_number') or session.get('l_number')
     continue_without_comment = request.args.get('continue')  # Check if continue was clicked
-
-    # Delete old logs after successful admin login
-    delete_old_logs()
 
     # Ensure l_number is available
     if not l_number:
@@ -779,6 +808,7 @@ def send_welcome_email(l_number, lab_id):
         file.write(msg.as_string())
     
     subprocess.run(["msmtp", "-a", config['smtp']['ACCOUNT'], student_email], input=msg.as_string(), text=True)
+
 
 def get_student_email(l_number):
     """Retrieve the student's email address from the SSHFS file."""

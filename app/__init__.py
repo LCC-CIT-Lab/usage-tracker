@@ -3,9 +3,9 @@ from flask_login import LoginManager
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 from app.auth import auth_bp
-from app.admin import admin_bp, create_admin, setup_logging
+from app.admin import admin_bp, create_admin
 from app.main import main_bp
-from app.models import db, DatabaseLogHandler
+from app.models import db
 from .config import load_config
 
 import os
@@ -46,7 +46,6 @@ def create_app():
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
-    setup_logging(app)
 
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -76,18 +75,5 @@ def create_app():
     def inject_logout_form():
         from app.forms import LogoutForm  # Local import to avoid circular dependency
         return dict(logout_form=LogoutForm())
-
-    # Logging setup
-    if not app.debug:
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-        file_handler = RotatingFileHandler('logs/app.log', maxBytes=10240, backupCount=10)
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-        ))
-        file_handler.setLevel(logging.INFO)
-        app.logger.addHandler(file_handler)
-        app.logger.setLevel(logging.INFO)
-        app.logger.info('App startup')
 
     return app

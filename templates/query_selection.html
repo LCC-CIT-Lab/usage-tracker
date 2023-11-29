@@ -36,15 +36,12 @@
 </head>
 <body>
     <div class="dashboard-container">
-
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <ul class=flashes>
-                {% for message in messages %}
-                    <li>{{ message }}</li>
-                {% endfor %}
-                </ul>
-            {% endif %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
         {% endwith %}
 
         <div class="dashboard-header">
@@ -87,8 +84,8 @@
                 </div>
                 <br>
                 <div class="form-group">
-                {% if session.csv_filename %}
-                    <a href="{{ url_for('admin.download_csv', filename=session.csv_filename) }}" class="button" download>Download CSV</a>
+                {% if session.csv_data %}
+                    <a href="{{ url_for('admin.stream_csv') }}" class="button">Download CSV</a>
                 {% endif %}
                 </div>
             </form>

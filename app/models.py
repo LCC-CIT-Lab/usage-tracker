@@ -76,35 +76,6 @@ class LabMessage(db.Model):
     lab_location = db.relationship('IPLocation', backref=db.backref('lab_messages', cascade='all, delete-orphan'))
 
 
-class LogEntry(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    level = db.Column(db.String(10), nullable=False)  # e.g., "INFO", "ERROR"
-    message = db.Column(db.Text, nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-
-    user = db.relationship('User', backref='log_entries')
-
-
-class DatabaseLogHandler(logging.Handler):
-    def emit(self, record):
-        try:
-            if has_app_context():
-                try:
-                    log_entry = LogEntry(
-                        level=record.levelname,
-                        message=record.getMessage(),
-                        user_id=getattr(current_user, 'id', None) if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated else None
-                    )
-                    db.session.add(log_entry)
-                    db.session.commit()
-                except Exception as e:
-                    current_app.logger.error("Failed to log message to database: %s", str(e))
-        except Exception as e:
-            # Log the error using a separate logger or print to stderr
-            db.session.rollback()
-
-
 class EmailTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     subject = db.Column(db.String(255), nullable=False)

@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import RadioField, StringField, SelectField, SubmitField, HiddenField, PasswordField, TextAreaField, BooleanField
+from wtforms import RadioField, StringField, SelectField, SubmitField, HiddenField, PasswordField, TextAreaField, BooleanField, IntegerField
 from wtforms.validators import DataRequired, InputRequired, IPAddress, Optional, Email
 from wtforms.fields import DateField
 from flask_wtf.file import FileField, FileAllowed, FileRequired
@@ -117,4 +117,9 @@ class QRCodeForm(FlaskForm):
 class FeedbackForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
     message = TextAreaField('Message', validators=[DataRequired()])
+    submit = SubmitField('Submit')
+
+
+class HoursInputForm(FlaskForm):
+    hours = IntegerField('Hours Spent in Lab', validators=[DataRequired()])
     submit = SubmitField('Submit')
