@@ -21,4 +21,4 @@ fs.sshfs==1.0.2
 flask_paginate==2023.10.24
 paramiko~=3.3.1
 numpy==1.19.5
-qrcode==7.4.2
+qrcode==7.3.1
