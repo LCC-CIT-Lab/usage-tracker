@@ -15,7 +15,7 @@ APScheduler==3.10.4
 fs.sshfs==1.0.2
 fs~=2.4.16
 alembic~=1.7.7
-SQLAlchemy~=2.0.22
+SQLAlchemy~=1.4.50
 fs==2.4.16
 fs.sshfs==1.0.2
 flask_paginate==2023.10.24
