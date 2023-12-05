@@ -101,6 +101,7 @@ The application's configuration, including database setup, SMTP settings, and en
 - Cryptography: Secure token handling and encryption.
 - msmtp: Email client for sending notifications and queries.
 - Paramiko: SSH interaction for file access.
+- 
 
 ## Dependencies
 
@@ -122,3 +123,6 @@ Developed by LCC-CIT-Lab, this project aims to streamline lab attendance managem
 - GitHub: @LCC-CIT-Lab
 - Email: CITLab@lanecc.edu
 
+## To Do
+
+- Encrypt whole db or L-numbers which ever is easier. 
