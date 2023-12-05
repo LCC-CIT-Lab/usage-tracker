@@ -1,19 +1,19 @@
 [encryption]
-DEFAULT_ADMIN_PASSWORD = "p"
-DEFAULT_ADMIN_USERNAME = "a"
-DEFAULT_ADMIN_EMAIL = "pass@a.edu"
-SECRET_KEY = "hashedkeyhashedkeyhashedkey"
-SESSION_COOKIE_SECURE = false
-SESSION_COOKIE_NAME = "sdgsd"
+DEFAULT_ADMIN_PASSWORD = "password"
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_EMAIL = "citlab@lanecc.edu"
+SECRET_KEY = "tgh45y4566y45y7fyhj66"
+SESSION_COOKIE_SECURE = true
+SESSION_COOKIE_NAME = "UsageTracker_Cookie"
 
 [smtp]
 ACCOUNT = "myapp"
-SUPPORT_EMAIL = "rosenauj@my.lanecc.edu"
+SUPPORT_EMAIL = "citlab@lanecc.edu"
 EMAIL_FILE_PATH = "/tmp/email.txt"
 
 [flask]
 SQLALCHEMY_DATABASE_URI = "sqlite:///attendance.db"
-DEBUG = true
+DEBUG = false
 
 [sshfs]
 REMOTE_TSV_PATH = "/data/"
