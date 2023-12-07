@@ -1,4 +1,4 @@
-# Project Title: Online Lab Attendance System
+# Project Title: Lab Usage Tracker / Online Attendance System
 
 ## Overview
 
@@ -116,7 +116,7 @@ Listed in `requirements.txt`, including Flask extensions like Flask-Login, Flask
 
 ## About the Project
 
-Developed by LCC-CIT-Lab, this project aims to streamline lab attendance management and ensure secure and efficient operations within educational settings. The system is open-source and welcomes contributions and feedback.
+Developed by LCC-CIT-Lab, this project aims to streamline lab attendance management and ensure secure and efficient operations within educational settings. The system is open-source and welcomes contributions and feedback. Lab Usage Tracker is available under the MIT license. See the LICENSE file for more info. 
 
 ## Contact
 
