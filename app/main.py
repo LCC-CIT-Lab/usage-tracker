@@ -447,8 +447,8 @@ def get_student_classes(l_number):
     """Retrieve the classes a student is enrolled in."""
     class_ids = []
     classes = []
-    local_file_path = 'zsrslst_cit.txt'
-    local_file_path_classes = 'zsrsecl_cit.txt'
+    local_file_path = current_app.config['sshfs']['LOCAL_STUCLASS_FILE']
+    local_file_path_classes = current_app.config['sshfs']['LOCAL_CLASS_FILE']
 
     try:
         # Read student's class IDs from local file
@@ -561,10 +561,7 @@ def send_sign_in_comment_email(l_number, comment, recipient_email):
     msg['From'] = current_app.config['smtp']['SUPPORT_EMAIL']
     msg['To'] = recipient_email
 
-    # Use msmtp or another method to send the email
     try:
-        # Assuming you have a setup to send emails
-        # For example, using msmtp:
         with open('/tmp/email.txt', 'w') as file:
             file.write(msg.as_string())
         subprocess.run(["msmtp", "-a", current_app.config['smtp']['ACCOUNT'], recipient_email], input=msg.as_string(), text=True)
@@ -583,7 +580,6 @@ def check_db():
 
 
 def get_current_term():
-    # Assuming TermDates model has start_date and end_date to define a term
     current_date = datetime.now().date()
     current_term = TermDates.query.filter(TermDates.start_date <= current_date, TermDates.end_date >= current_date).first()
     return current_term
@@ -591,52 +587,6 @@ def get_current_term():
 
 def default_sign_out(sign_in_timestamp):
     return datetime.combine(sign_in_timestamp.date(), time(16, 30))
-
-
-def get_student_stats(lab_id):
-    # Early return if no lab_id is provided
-    if not lab_id:
-        return None
-
-    current_term = get_current_term()
-    if not current_term:
-        return None
-
-    # Convert current_term.end_date to datetime at the end of the day (23:59:59)
-    term_end_datetime = datetime.combine(current_term.end_date, time(23, 59, 59))
-
-    sign_ins = SignInData.query.filter(
-        SignInData.sign_in_timestamp.between(current_term.start_date, term_end_datetime),
-        SignInData.ip_location_id == lab_id  # Filter by lab ID
-    ).all()
-
-    total_hours = round(
-        sum(
-            ((record.sign_out_timestamp or datetime.now()) - record.sign_in_timestamp).total_seconds() / 3600
-            for record in sign_ins
-        ), 2
-    )
-
-    # Calculate new and returning students count
-    student_counts = db.session.query(
-        SignInData.l_number,
-        func.count(SignInData.l_number).label('visit_count')
-    ).filter(
-        SignInData.sign_in_timestamp.between(current_term.start_date, current_term.end_date),
-        SignInData.ip_location_id == lab_id
-    ).group_by(SignInData.l_number).all()
-
-    single_visit_students_count = sum(1 for _, count in student_counts if count == 1)
-    returning_students_count = sum(1 for _, count in student_counts if count > 1)
-
-    ratio = returning_students_count / single_visit_students_count if single_visit_students_count else 0
-
-    return {
-        "total_hours": total_hours,
-        "single_visit_students_count": single_visit_students_count,
-        "returning_students_count": returning_students_count,
-        "ratio": ratio
-    }
 
 
 @main_bp.route('/statistics')
@@ -813,7 +763,7 @@ def send_welcome_email(l_number, lab_id):
 def get_student_email(l_number):
     """Retrieve the student's email address from the SSHFS file."""
     sshfs = create_sshfs()
-    file_path = os.path.join(config['sshfs']['REMOTE_TSV_PATH'], 'zsrsinf_cit.txt')
+    file_path = os.path.join(config['sshfs']['REMOTE_TSV_PATH'], config['sshfs']['LOCAL_STUDENT_FILE'])
     try:
         with sshfs.open(file_path, 'r') as file:
             reader = csv.reader(file, delimiter='\t')

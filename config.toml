@@ -1,14 +1,14 @@
 [encryption]
 DEFAULT_ADMIN_PASSWORD = "password"
 DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_EMAIL = "citlab@lanecc.edu"
-SECRET_KEY = "tgh45y4566y45y7fyhj66"
+DEFAULT_ADMIN_EMAIL = "user@example.com"
+SECRET_KEY = "changethiskey"
 SESSION_COOKIE_SECURE = true
 SESSION_COOKIE_NAME = "UsageTracker_Cookie"
 
 [smtp]
 ACCOUNT = "myapp"
-SUPPORT_EMAIL = "citlab@lanecc.edu"
+SUPPORT_EMAIL = "user@example.com"
 EMAIL_FILE_PATH = "/tmp/email.txt"
 
 [flask]
@@ -17,8 +17,10 @@ DEBUG = false
 
 [sshfs]
 REMOTE_TSV_PATH = "/data/"
-HOST = "nlms.lanecc.edu"
+HOST = "example.com"
 USER = "app"
 PORT = 22
 PRIVATE_KEY_PATH = "app_keys/id_rsa"
-LOCAL_STUDENT_FILE = "zsrsinf_cit.txt"
+LOCAL_STUDENT_FILE = ""
+LOCAL_STUCLASS_FILE = ""
+LOCAL_CLASS_FILE = ""
