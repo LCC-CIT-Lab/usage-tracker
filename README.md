@@ -1,8 +1,9 @@
-# Project Title: Lab Usage Tracker / Online Attendance System
+# Project Title: Lab Usage Tracker 
+  Online Attendance System
 
 ## Overview
 
-The Online Lab Attendance System is a Flask-based web application designed for managing lab attendance in educational institutions. It automates the process of student sign-ins/outs and provides administrators with robust tools for user and data management. The application integrates secure authentication, IP mapping, a messaging system, and various administrative functionalities.
+The Lab Usage Tracker is a Flask-based web application designed for managing lab attendance in educational institutions. It automates the process of student sign-ins/outs and provides administrators with robust tools for user and data management. The application integrates secure authentication, IP mapping, a messaging system, and various administrative functionalities.
 
 ## Key Features
 
